@@ -3,7 +3,16 @@ import { db, planConfigsTable, usersTable, domainsTable } from "@workspace/db";
 import { hashPassword, generateApiKey } from "../lib/auth.js";
 import { loadDomainCache } from "../lib/domain-cache.js";
 
+const isCI = process.env.CI === "true";
+
 beforeAll(async () => {
+  if (isCI && !process.env.TEST_DATABASE_URL) {
+    throw new Error(
+      "TEST_DATABASE_URL must be set in CI to prevent polluting the production/dev database. " +
+      "Set TEST_DATABASE_URL to a dedicated test database URL."
+    );
+  }
+
   await db
     .insert(planConfigsTable)
     .values([
