@@ -14,7 +14,17 @@ import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { isDisposableDomain } from "../lib/domain-cache.js";
 import { getPlanConfig } from "../lib/auth.js";
-import { computeReputationScore, isRoleAccount, isFreeEmail } from "../lib/reputation.js";
+import {
+  computeReputationScore,
+  computeRiskLevel,
+  buildTags,
+  isRoleAccount,
+  isFreeEmail,
+  checkDnsbl,
+  smtpProbe,
+  catchAllProbe,
+  FREE_EMAIL_PROVIDERS,
+} from "../lib/reputation.js";
 import { fireWebhook } from "../lib/webhooks.js";
 import { verifySmtp } from "../lib/smtp-verifier.js";
 import dns from "dns";
@@ -85,11 +95,6 @@ interface AuthResult {
   isApiKeyAuth: boolean;
 }
 
-/**
- * If the user's usagePeriodStart is in a past calendar month, reset their
- * requestCount to 0 and update usagePeriodStart to the start of this month.
- * Returns the (possibly reset) requestCount.
- */
 async function maybeResetMonthlyUsage(
   userId: number,
   usagePeriodStart: Date,
@@ -118,7 +123,6 @@ async function resolveAuth(req: Request): Promise<AuthResult | null> {
   if (authHeader?.startsWith("Bearer ")) {
     const apiKey = authHeader.slice(7);
 
-    // Check primary user api key
     const [user] = await db
       .select({ id: usersTable.id, requestCount: usersTable.requestCount, plan: usersTable.plan, usagePeriodStart: usersTable.usagePeriodStart })
       .from(usersTable)
@@ -130,7 +134,6 @@ async function resolveAuth(req: Request): Promise<AuthResult | null> {
       return { userId: user.id, userPlan: user.plan, requestCount, isApiKeyAuth: true };
     }
 
-    // Check named api keys
     const [namedKey] = await db
       .select({ userId: userApiKeysTable.userId })
       .from(userApiKeysTable)
@@ -192,17 +195,31 @@ async function checkOriginAllowed(req: Request, userId: number): Promise<{ allow
   return { allowed: true };
 }
 
+interface ChecksResult {
+  domain: string;
+  disposable: boolean;
+  mxValidResult: boolean | undefined;
+  inboxSupportResult: boolean | undefined;
+  reputationScore: number;
+  riskLevel: string;
+  tags: string[];
+  isCustomBlocked: boolean;
+  roleAccount: boolean | undefined;
+  dnsblHit: boolean | null | undefined;
+  smtpValid: boolean | null | undefined;
+  catchAll: boolean | null | undefined;
+}
+
 async function performChecks(
   email: string,
   userId: number,
   planConfig: Awaited<ReturnType<typeof getPlanConfig>>
-) {
-  const domain = email.split("@")[1]?.toLowerCase() ?? "";
+): Promise<ChecksResult & { isValidSyntax: boolean; isFreeEmail: boolean; smtpDetails?: any }> {
+  const [localPart, domainRaw] = email.split("@");
+  const domain = domainRaw?.toLowerCase() ?? "";
   const isValidSyntax = z.string().email().safeParse(email).success;
-  const isAdmin = isRoleAccount(email);
   const isFree = isFreeEmail(domain);
 
-  // Custom blocklist (domain is already lowercased)
   const [blocked] = await db
     .select({ id: customBlocklistTable.id })
     .from(customBlocklistTable)
@@ -211,6 +228,9 @@ async function performChecks(
 
   const isCustomBlocked = !!blocked;
   const disposable = isCustomBlocked || isDisposableDomain(domain);
+
+  // Role account — all plans
+  const roleAccount = isRoleAccount(localPart ?? "");
 
   let mxValidResult: boolean | undefined;
   let inboxSupportResult: boolean | undefined;
@@ -235,37 +255,68 @@ async function performChecks(
     }
   }
 
+  // DNSBL — BASIC + PRO
+  let dnsblHit: boolean | null | undefined = undefined;
+  if (planConfig.plan === "BASIC" || planConfig.plan === "PRO") {
+    dnsblHit = await checkDnsbl(domain);
+  }
+
+  // SMTP probe + catch-all — PRO only
+  let smtpValid: boolean | null | undefined = undefined;
+  let catchAll: boolean | null | undefined = undefined;
+  if (planConfig.plan === "PRO") {
+    smtpValid = await smtpProbe(domain, email);
+    if (smtpValid !== false) {
+      catchAll = await catchAllProbe(domain);
+    } else {
+      catchAll = undefined;
+    }
+  }
+
   const reputationScore = computeReputationScore({
     isDisposable: disposable,
     hasMx: mxValidResult ?? (smtpDetails ? smtpDetails.mxRecords.length > 0 : undefined),
     hasInbox: inboxSupportResult,
-    isAdmin,
+    isAdmin: roleAccount,
     isFree,
     isDeliverable: smtpDetails?.isDeliverable,
-    isCatchAll: smtpDetails?.isCatchAll,
+    isCatchAll: smtpDetails?.isCatchAll || catchAll === true,
     canConnect: smtpDetails?.canConnect,
     domain,
+    dnsblHit: dnsblHit === true ? true : undefined,
+    smtpValid: smtpValid,
+    roleAccount,
+  });
+
+  const riskLevel = computeRiskLevel(reputationScore);
+
+  const tags = buildTags({
+    isDisposable: disposable,
+    catchAll: catchAll || smtpDetails?.isCatchAll,
+    roleAccount,
+    freeProvider: isFree,
+    dnsblHit: dnsblHit === true ? true : undefined,
   });
 
   return {
     domain,
     disposable,
-    reputationScore,
-    isCustomBlocked,
-    isValidSyntax,
-    isRoleAccount: isAdmin,
-    isFreeEmail: isFree,
-    smtpDetails,
     mxValidResult: mxValidResult ?? (smtpDetails ? smtpDetails.mxRecords.length > 0 : undefined),
     inboxSupportResult,
+    reputationScore,
+    riskLevel,
+    tags,
+    isCustomBlocked,
+    roleAccount,
+    dnsblHit,
+    smtpValid,
+    catchAll,
+    isValidSyntax,
+    isFreeEmail: isFree,
+    smtpDetails,
   };
 }
 
-/**
- * Dispatch webhooks — only fires when:
- *   1. The request was authenticated with an API key (not a session)
- *   2. The email is disposable
- */
 async function dispatchWebhooks(
   userId: number,
   email: string,
@@ -276,7 +327,6 @@ async function dispatchWebhooks(
 ) {
   if (!isApiKeyAuth || !isDisposable) return;
 
-  // Verify user is still on PRO — webhooks are a PRO-only feature
   const [user] = await db
     .select({ plan: usersTable.plan })
     .from(usersTable)
@@ -302,14 +352,12 @@ async function dispatchWebhooks(
     timestamp: new Date().toISOString(),
   };
 
-  // Only fire webhooks that are subscribed to this event
   const subscribed = webhooks.filter(
     (wh) => Array.isArray(wh.events) && (wh.events as string[]).includes(EVENT)
   );
 
   if (subscribed.length === 0) return;
 
-  // Fire in parallel, non-blocking
   Promise.allSettled(subscribed.map((wh) => fireWebhook(wh.url, wh.secret, payload)));
 }
 
@@ -392,16 +440,17 @@ router.post("/check-email", async (req, res) => {
     reputationScore: checks.reputationScore,
   });
 
-  // Only fire webhooks for API key auth + disposable results
   void dispatchWebhooks(userId, email, checks.domain, checks.disposable, checks.reputationScore, isApiKeyAuth).catch(() => {});
 
   res.json({
     isDisposable: checks.disposable,
     domain: checks.domain,
     reputationScore: checks.reputationScore,
+    riskLevel: checks.riskLevel,
+    tags: checks.tags,
     requestsRemaining,
     isValidSyntax: checks.isValidSyntax,
-    isRoleAccount: checks.isRoleAccount,
+    isRoleAccount: checks.roleAccount,
     isFreeEmail: checks.isFreeEmail,
     mxValid: checks.mxValidResult ?? false,
     inboxSupport: checks.inboxSupportResult ?? false,
@@ -409,9 +458,11 @@ router.post("/check-email", async (req, res) => {
     mxAcceptsMail: checks.smtpDetails?.mxAcceptsMail ?? null,
     mxRecords: checks.smtpDetails?.mxRecords ?? [],
     isDeliverable: checks.smtpDetails?.isDeliverable ?? null,
-    isCatchAll: checks.smtpDetails?.isCatchAll ?? null,
+    isCatchAll: checks.catchAll || checks.smtpDetails?.isCatchAll || null,
     isDisabled: checks.smtpDetails?.isDisabled ?? null,
     hasInboxFull: checks.smtpDetails?.hasInboxFull ?? null,
+    dnsblHit: checks.dnsblHit ?? null,
+    smtpValid: checks.smtpValid ?? null,
   });
 });
 
@@ -431,7 +482,6 @@ router.post("/check-emails/bulk", async (req, res) => {
 
   const { userId, userPlan, requestCount, isApiKeyAuth } = auth;
 
-  // Bulk verification is not available on FREE plan
   if (userPlan === "FREE") {
     res.status(403).json({
       error: "Bulk verification is not available on the FREE plan. Please upgrade to BASIC or PRO.",
@@ -448,7 +498,6 @@ router.post("/check-emails/bulk", async (req, res) => {
   const { emails } = result.data;
   const planConfig = await getPlanConfig(userPlan);
 
-  // Explicit quota check — refuse entire batch rather than silent truncation
   const remaining = planConfig.requestLimit - requestCount;
   if (remaining <= 0) {
     res.status(429).json({ error: "Rate limit exceeded. Please upgrade your plan." });
@@ -471,13 +520,11 @@ router.post("/check-emails/bulk", async (req, res) => {
     }
   }
 
-  // Deduct from quota upfront
   await db
     .update(usersTable)
     .set({ requestCount: requestCount + emails.length })
     .where(eq(usersTable.id, userId));
 
-  // Process all emails in parallel
   const results = await Promise.all(
     emails.map(async (email) => {
       try {
@@ -491,7 +538,6 @@ router.post("/check-emails/bulk", async (req, res) => {
           reputationScore: checks.reputationScore,
         });
 
-        // Only fire webhooks for API key auth + disposable results
         void dispatchWebhooks(userId, email, checks.domain, checks.disposable, checks.reputationScore, isApiKeyAuth).catch(() => {});
 
         return {
@@ -499,8 +545,20 @@ router.post("/check-emails/bulk", async (req, res) => {
           isDisposable: checks.disposable,
           domain: checks.domain,
           reputationScore: checks.reputationScore,
+          riskLevel: checks.riskLevel,
+          tags: checks.tags,
+          roleAccount: checks.roleAccount,
           ...(planConfig.mxDetectionEnabled ? { mxValid: checks.mxValidResult ?? false } : {}),
           ...(planConfig.inboxCheckEnabled ? { inboxSupport: checks.inboxSupportResult ?? false } : {}),
+          ...(planConfig.plan === "BASIC" || planConfig.plan === "PRO"
+            ? { dnsblHit: checks.dnsblHit ?? null }
+            : {}),
+          ...(planConfig.plan === "PRO"
+            ? {
+                smtpValid: checks.smtpValid ?? null,
+                catchAll: checks.catchAll ?? null,
+              }
+            : {}),
         };
       } catch {
         return { email, error: "Failed to check email" };
