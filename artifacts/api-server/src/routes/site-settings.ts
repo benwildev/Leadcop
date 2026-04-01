@@ -6,7 +6,7 @@ import { requireAdmin } from "../middlewares/session.js";
 
 const router = Router();
 
-const ALLOWED_SLUGS = new Set(["/", "/pricing", "/docs", "/login", "/signup", "/dashboard", "/upgrade"]);
+const ALLOWED_SLUGS = new Set(["/", "/pricing", "/docs", "/login", "/signup"]);
 
 const DEFAULTS = {
   siteTitle: "TempShield",
@@ -122,8 +122,9 @@ router.patch("/admin/site-settings", requireAdmin, async (req, res) => {
   res.json({ message: "Site settings updated" });
 });
 
-router.get("/admin/site-settings/page", requireAdmin, async (req: any, res: any) => {
-  const slug = String(req.query.slug || "/");
+router.get("/admin/site-settings/page/*slug", requireAdmin, async (req: any, res: any) => {
+  const raw = String((req.params as Record<string, string>).slug ?? "");
+  const slug = raw === "home" ? "/" : raw ? `/${raw}` : "/";
   if (!ALLOWED_SLUGS.has(slug)) {
     res.status(400).json({ error: "Unknown page slug" });
     return;
@@ -141,8 +142,9 @@ const updatePageSeoSchema = z.object({
   ogImage: z.string().url().max(2048).nullable().optional(),
 });
 
-router.patch("/admin/site-settings/page", requireAdmin, async (req: any, res: any) => {
-  const slug = String(req.query.slug || "/");
+router.patch("/admin/site-settings/page/*slug", requireAdmin, async (req: any, res: any) => {
+  const raw = String((req.params as Record<string, string>).slug ?? "");
+  const slug = raw === "home" ? "/" : raw ? `/${raw}` : "/";
   if (!ALLOWED_SLUGS.has(slug)) {
     res.status(400).json({ error: "Unknown page slug" });
     return;

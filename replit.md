@@ -143,8 +143,8 @@ The `isFreeEmail(domain)` function in `artifacts/api-server/src/lib/reputation.t
 - `GET /api/site-settings/page?slug=<path>` — public: per-page SEO (metaTitle, metaDescription, keywords, og* tags) for allowed slugs
 - `GET /api/admin/site-settings` — admin: read current branding settings
 - `PATCH /api/admin/site-settings` — admin: update branding & global meta defaults
-- `GET /api/admin/site-settings/page?slug=<path>` — admin: read per-page SEO
-- `PATCH /api/admin/site-settings/page?slug=<path>` — admin: update per-page SEO
+- `GET /api/admin/site-settings/page/:slug` — admin: read per-page SEO (slug is path without leading /, e.g. `pricing` for `/pricing`, empty for `/`)
+- `PATCH /api/admin/site-settings/page/:slug` — admin: update per-page SEO
 
 ## Security Features
 

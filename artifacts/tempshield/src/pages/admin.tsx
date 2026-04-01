@@ -2097,8 +2097,6 @@ const PAGE_SLUGS = [
   { slug: "/docs", label: "Documentation" },
   { slug: "/login", label: "Login" },
   { slug: "/signup", label: "Sign Up" },
-  { slug: "/dashboard", label: "Dashboard" },
-  { slug: "/upgrade", label: "Upgrade" },
 ];
 
 interface PageSeoData {
@@ -2111,11 +2109,17 @@ interface PageSeoData {
   ogImage: string | null;
 }
 
+function slugToPathParam(slug: string): string {
+  if (slug === "/") return "home";
+  return slug.replace(/^\//, "");
+}
+
 function PageSeoEditor({ slug, label }: { slug: string; label: string }) {
   const qc = useQueryClient();
+  const slugParam = slugToPathParam(slug);
   const { data, isLoading } = useQuery<PageSeoData>({
-    queryKey: [`/api/admin/site-settings/page?slug=${slug}`],
-    queryFn: () => fetch(`/api/admin/site-settings/page?slug=${encodeURIComponent(slug)}`).then(r => r.json()),
+    queryKey: [`/api/admin/site-settings/page/${slugParam}`],
+    queryFn: () => fetch(`/api/admin/site-settings/page/${slugParam}`).then(r => r.json()),
   });
 
   const [form, setForm] = useState<Omit<PageSeoData, "slug">>({
@@ -2149,7 +2153,7 @@ function PageSeoEditor({ slug, label }: { slug: string; label: string }) {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/site-settings/page?slug=${encodeURIComponent(slug)}`, {
+      const res = await fetch(`/api/admin/site-settings/page/${slugParam}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
@@ -2158,7 +2162,7 @@ function PageSeoEditor({ slug, label }: { slug: string; label: string }) {
         const j = await res.json();
         throw new Error(j.error || "Failed to save");
       }
-      qc.invalidateQueries({ queryKey: [`/api/admin/site-settings/page?slug=${slug}`] });
+      qc.invalidateQueries({ queryKey: [`/api/admin/site-settings/page/${slugParam}`] });
       qc.invalidateQueries({ queryKey: [`/api/site-settings/page?slug=${slug}`] });
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);

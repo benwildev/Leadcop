@@ -23,7 +23,7 @@ export interface PageSeo {
   ogImage: string | null;
 }
 
-const ALLOWED_SLUGS = new Set(["/", "/pricing", "/docs", "/login", "/signup", "/dashboard", "/upgrade"]);
+const ALLOWED_SLUGS = new Set(["/", "/pricing", "/docs", "/login", "/signup"]);
 
 const DEFAULTS: SiteSettings = {
   siteTitle: "TempShield",
