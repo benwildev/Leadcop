@@ -13,8 +13,10 @@ export interface PlanConfig {
   inboxCheckLimit: number;
   websiteLimit: number;
   pageLimit: number;
+  maxBulkEmails: number;
   mxDetectionEnabled: boolean;
   inboxCheckEnabled: boolean;
+  price: number;
 }
 
 export interface PlanConfigsResponse {
@@ -27,8 +29,10 @@ export interface UpdatePlanConfigBody {
   inboxCheckLimit?: number;
   websiteLimit?: number;
   pageLimit?: number;
+  maxBulkEmails?: number;
   mxDetectionEnabled?: boolean;
   inboxCheckEnabled?: boolean;
+  price?: number;
 }
 
 export interface CreatePlanConfigBody {
@@ -38,8 +42,10 @@ export interface CreatePlanConfigBody {
   inboxCheckLimit?: number;
   websiteLimit?: number;
   pageLimit?: number;
+  maxBulkEmails?: number;
   mxDetectionEnabled?: boolean;
   inboxCheckEnabled?: boolean;
+  price?: number;
 }
 
 // ─── Admin: Users ─────────────────────────────────────────────────────────────

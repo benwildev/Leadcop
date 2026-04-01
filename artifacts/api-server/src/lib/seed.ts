@@ -9,8 +9,10 @@ const DEFAULT_PLAN_CONFIGS = [
     inboxCheckLimit: 0,
     websiteLimit: 0,
     pageLimit: 0,
+    maxBulkEmails: 0,
     mxDetectionEnabled: false,
     inboxCheckEnabled: false,
+    price: 0,
   },
   {
     plan: "BASIC" as const,
@@ -19,8 +21,10 @@ const DEFAULT_PLAN_CONFIGS = [
     inboxCheckLimit: 0,
     websiteLimit: 1,
     pageLimit: 10,
+    maxBulkEmails: 100,
     mxDetectionEnabled: true,
     inboxCheckEnabled: false,
+    price: 9,
   },
   {
     plan: "PRO" as const,
@@ -29,8 +33,10 @@ const DEFAULT_PLAN_CONFIGS = [
     inboxCheckLimit: 0,
     websiteLimit: 10,
     pageLimit: 100,
+    maxBulkEmails: 500,
     mxDetectionEnabled: true,
     inboxCheckEnabled: true,
+    price: 29,
   },
 ];
 
