@@ -74,7 +74,7 @@ Each email check returns a `reputationScore` (0–100):
 
 ## Free Email Provider Detection
 
-The `isFreeEmail(domain)` function in `lib/reputation.ts` checks against a hardcoded list of 20 providers: gmail.com, yahoo.com, hotmail.com, outlook.com, live.com, icloud.com, aol.com, protonmail.com, proton.me, zoho.com, yandex.com, mail.com, gmx.com, fastmail.com, tutanota.com, hey.com, msn.com, me.com, mac.com, pm.me.
+The `isFreeEmail(domain)` function in `artifacts/api-server/src/lib/reputation.ts` checks against a hardcoded list of 20 providers: gmail.com, yahoo.com, hotmail.com, outlook.com, live.com, icloud.com, aol.com, protonmail.com, proton.me, zoho.com, yandex.com, mail.com, gmx.com, fastmail.com, tutanota.com, hey.com, msn.com, me.com, mac.com, pm.me.
 
 ## Key API Routes
 
