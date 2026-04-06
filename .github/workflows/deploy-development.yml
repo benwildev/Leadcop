@@ -37,6 +37,8 @@ jobs:
           port: ${{ secrets.SERVER_PORT || 22 }}
           script: |
             set -e
+            export PATH="/root/.local/share/pnpm:/root/.nvm/versions/node/v22.22.0/bin:/usr/bin:$PATH"
+
             echo "=== Pulling latest development branch ==="
             cd /var/www/Temp-Email-SDK
             git fetch origin
@@ -44,13 +46,13 @@ jobs:
             git pull origin development
 
             echo "=== Installing dependencies ==="
-            pnpm install --frozen-lockfile
+            /root/.local/share/pnpm/pnpm install --frozen-lockfile
 
             echo "=== Building project ==="
-            pnpm run build
+            /root/.local/share/pnpm/pnpm run build
 
             echo "=== Restarting PM2 process ==="
-            pm2 restart email-verifier --update-env
+            /usr/bin/pm2 restart email-verifier --update-env
 
             echo "✅ Development deployment complete!"
-            pm2 status email-verifier
+            /usr/bin/pm2 status email-verifier

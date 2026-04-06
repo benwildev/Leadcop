@@ -34,6 +34,8 @@ jobs:
           port: ${{ secrets.SERVER_PORT || 22 }}
           script: |
             set -e
+            export PATH="/root/.local/share/pnpm:/root/.nvm/versions/node/v22.22.0/bin:/usr/bin:$PATH"
+
             echo "=== Pulling latest main branch ==="
             cd /var/www/leadcop.io
             git fetch origin
@@ -41,13 +43,13 @@ jobs:
             git pull origin main
 
             echo "=== Installing dependencies ==="
-            pnpm install --frozen-lockfile
+            /root/.local/share/pnpm/pnpm install --frozen-lockfile
 
             echo "=== Building project ==="
-            pnpm run build
+            /root/.local/share/pnpm/pnpm run build
 
             echo "=== Restarting PM2 process ==="
-            pm2 restart leadcop-live --update-env
+            /usr/bin/pm2 restart leadcop-live --update-env
 
             echo "✅ Production deployment complete!"
-            pm2 status leadcop-live
+            /usr/bin/pm2 status leadcop-live
