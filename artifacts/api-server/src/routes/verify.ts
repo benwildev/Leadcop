@@ -22,12 +22,22 @@ interface FreeSession {
   expiresAt: Date;
 }
 
+/** Cookie-keyed sessions — powers the "X of N used" counter in the UI */
 const freeSessions = new Map<string, FreeSession>();
+
+/**
+ * IP-keyed sessions — the real abuse-prevention layer.
+ * Clearing cookies does NOT reset this counter.
+ */
+const freeIpSessions = new Map<string, FreeSession>();
 
 function pruneExpired() {
   const now = new Date();
   for (const [k, v] of freeSessions) {
     if (v.expiresAt < now) freeSessions.delete(k);
+  }
+  for (const [k, v] of freeIpSessions) {
+    if (v.expiresAt < now) freeIpSessions.delete(k);
   }
 }
 
@@ -44,18 +54,36 @@ async function getFreeVerifyLimit(): Promise<number> {
   }
 }
 
-function getOrCreateSession(sessionId: string | undefined): { sessionId: string; session: FreeSession; isNew: boolean } {
+function getOrCreateSession(
+  map: Map<string, FreeSession>,
+  key: string | undefined,
+  autoCreate = true,
+): { key: string; session: FreeSession; isNew: boolean } {
   pruneExpired();
-  if (sessionId) {
-    const existing = freeSessions.get(sessionId);
+  if (key) {
+    const existing = map.get(key);
     if (existing && existing.expiresAt > new Date()) {
-      return { sessionId, session: existing, isNew: false };
+      return { key, session: existing, isNew: false };
     }
   }
-  const newId = uuidv4();
+  if (!autoCreate) {
+    const stub: FreeSession = { count: 0, expiresAt: new Date(Date.now() + SESSION_TTL_MS) };
+    return { key: key ?? "__none__", session: stub, isNew: true };
+  }
+  const newKey = key && map !== freeSessions ? key : uuidv4();
   const session: FreeSession = { count: 0, expiresAt: new Date(Date.now() + SESSION_TTL_MS) };
-  freeSessions.set(newId, session);
-  return { sessionId: newId, session, isNew: true };
+  map.set(newKey, session);
+  return { key: newKey, session, isNew: true };
+}
+
+/** Extract a stable client identifier from the request (IP). */
+function clientIp(req: import("express").Request): string {
+  const forwarded = req.headers["x-forwarded-for"];
+  if (forwarded) {
+    const first = (Array.isArray(forwarded) ? forwarded[0] : forwarded).split(",")[0].trim();
+    if (first) return first;
+  }
+  return req.socket?.remoteAddress ?? "unknown";
 }
 
 const freeVerifySchema = z.object({
@@ -65,10 +93,16 @@ const freeVerifySchema = z.object({
 // GET /api/verify/free/status — returns remaining checks for current session
 router.get("/verify/free/status", async (req, res) => {
   const cookieId = req.cookies?.[FREE_VERIFY_COOKIE];
+  const ip = clientIp(req);
   const limit = await getFreeVerifyLimit();
-  const { sessionId, session, isNew } = getOrCreateSession(cookieId);
 
-  if (isNew) {
+  const { key: sessionId, session: cookieSession, isNew: cookieIsNew } = getOrCreateSession(
+    freeSessions,
+    cookieId,
+  );
+  const { session: ipSession } = getOrCreateSession(freeIpSessions, ip);
+
+  if (cookieIsNew) {
     res.cookie(FREE_VERIFY_COOKIE, sessionId, {
       httpOnly: true,
       maxAge: SESSION_TTL_MS,
@@ -77,18 +111,25 @@ router.get("/verify/free/status", async (req, res) => {
     });
   }
 
-  const used = session.count;
+  // Effective used count is the higher of the two trackers
+  const used = Math.max(cookieSession.count, ipSession.count);
   const remaining = Math.max(0, limit - used);
   res.json({ used, limit, remaining, limitReached: remaining === 0 });
 });
 
-// POST /api/verify/free — public email check, session-rate-limited
+// POST /api/verify/free — public email check, session + IP rate-limited
 router.post("/verify/free", async (req, res) => {
   const cookieId = req.cookies?.[FREE_VERIFY_COOKIE];
+  const ip = clientIp(req);
   const limit = await getFreeVerifyLimit();
-  const { sessionId, session, isNew } = getOrCreateSession(cookieId);
 
-  if (isNew || !cookieId) {
+  const { key: sessionId, session: cookieSession, isNew: cookieIsNew } = getOrCreateSession(
+    freeSessions,
+    cookieId,
+  );
+  const { session: ipSession } = getOrCreateSession(freeIpSessions, ip);
+
+  if (cookieIsNew || !cookieId) {
     res.cookie(FREE_VERIFY_COOKIE, sessionId, {
       httpOnly: true,
       maxAge: SESSION_TTL_MS,
@@ -97,11 +138,14 @@ router.post("/verify/free", async (req, res) => {
     });
   }
 
-  const remaining = Math.max(0, limit - session.count);
+  // Block if EITHER the cookie session OR the IP session is exhausted
+  const effectiveUsed = Math.max(cookieSession.count, ipSession.count);
+  const remaining = Math.max(0, limit - effectiveUsed);
+
   if (remaining === 0) {
     res.status(429).json({
       error: "You have used all your free checks. Sign up for a free account to get more.",
-      used: session.count,
+      used: effectiveUsed,
       limit,
       remaining: 0,
       limitReached: true,
@@ -138,9 +182,12 @@ router.post("/verify/free", async (req, res) => {
     freeProvider: isFree,
   });
 
-  session.count += 1;
+  // Increment both trackers together
+  cookieSession.count += 1;
+  ipSession.count += 1;
 
-  const newRemaining = Math.max(0, limit - session.count);
+  const newUsed = Math.max(cookieSession.count, ipSession.count);
+  const newRemaining = Math.max(0, limit - newUsed);
 
   res.json({
     email,
@@ -161,7 +208,7 @@ router.post("/verify/free", async (req, res) => {
     isCatchAll: null,
     isDisabled: null,
     hasInboxFull: null,
-    used: session.count,
+    used: newUsed,
     limit,
     remaining: newRemaining,
     limitReached: newRemaining === 0,

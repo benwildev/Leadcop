@@ -98,7 +98,7 @@ export function Navbar() {
             href="/verify"
             className="text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
-            Free Check
+            Email Checker
           </Link>
           {user && (
             <Link
@@ -212,7 +212,7 @@ export function Navbar() {
                 onClick={() => setMobileOpen(false)}
                 className="text-sm font-medium text-muted-foreground hover:text-foreground"
               >
-                Free Check
+                Email Checker
               </Link>
               {user ? (
                 <>
@@ -298,7 +298,7 @@ export function Footer() {
               href="/verify"
               className="transition-colors hover:text-foreground"
             >
-              Free Check
+              Email Checker
             </Link>
             <a
               href="https://github.com/disposable-email-domains/disposable-email-domains"
