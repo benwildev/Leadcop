@@ -10,6 +10,7 @@ import emailSettingsRouter from "./email-settings.js";
 import storageRouter from "./storage.js";
 import siteSettingsRouter from "./site-settings.js";
 import verifyRouter from "./verify.js";
+import bulkJobsRouter from "./bulk-jobs.js";
 
 const router: IRouter = Router();
 
@@ -24,5 +25,6 @@ router.use("/admin/email-settings", emailSettingsRouter);
 router.use(storageRouter);
 router.use(siteSettingsRouter);
 router.use(verifyRouter);
+router.use(bulkJobsRouter);
 
 export default router;

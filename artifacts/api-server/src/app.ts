@@ -3,6 +3,7 @@ import cors, { type CorsOptions } from "cors";
 import cookieParser from "cookie-parser";
 import pinoHttp from "pino-http";
 import router from "./routes/index.js";
+import { startBulkWorker } from "./routes/bulk-jobs.js";
 import { logger } from "./lib/logger.js";
 import { sessionMiddleware } from "./middlewares/session.js";
 import { loadDomainCache } from "./lib/domain-cache.js";
@@ -127,5 +128,7 @@ app.use((req, res, next) => {
 loadDomainCache().catch((err) => {
   logger.error({ err }, "Failed to load domain cache on startup");
 });
+
+startBulkWorker();
 
 export default app;

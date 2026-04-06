@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { Navbar, PageTransition } from "@/components/Layout";
 import {
@@ -21,6 +21,7 @@ import {
   BarChart3, Clock, Globe, FileText, Plus, Trash2, Loader2, X,
   Webhook, ShieldBan, Eye, EyeOff, Shield, AlertTriangle, ChevronDown,
   TrendingUp, ListFilter, ChevronLeft, ChevronRight, CreditCard, Download, Zap, Code,
+  Layers, Upload, RotateCcw, CheckCircle, XCircle, Minus,
 } from "lucide-react";
 import ReputationBadge from "@/components/ReputationBadge";
 import { motion, AnimatePresence } from "framer-motion";
@@ -33,7 +34,7 @@ import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { Link } from "wouter";
 import VerificationModal from "@/components/VerificationModal";
 
-type Tab = "overview" | "analytics" | "keys" | "webhooks" | "blocklist" | "settings" | "audit" | "billing";
+type Tab = "overview" | "analytics" | "keys" | "webhooks" | "blocklist" | "settings" | "audit" | "billing" | "bulk";
 
 function errMsg(err: unknown): string {
   if (err instanceof Error) return err.message;
@@ -79,6 +80,7 @@ export default function DashboardPage() {
   const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
     { id: "overview", label: "Overview", icon: BarChart3 },
     { id: "analytics", label: "Analytics", icon: TrendingUp },
+    { id: "bulk", label: "Bulk Verify", icon: Layers },
     { id: "keys", label: "API Keys", icon: Key },
     { id: "webhooks", label: "Webhooks", icon: Webhook },
     { id: "blocklist", label: "Blocklist", icon: ShieldBan },
@@ -154,6 +156,7 @@ export default function DashboardPage() {
               {activeTab === "blocklist" && <BlocklistTab plan={data.user.plan} />}
               {activeTab === "audit" && <AuditLogTab />}
               {activeTab === "billing" && <BillingTab />}
+              {activeTab === "bulk" && <BulkVerifyTab plan={data.user.plan} />}
               {activeTab === "settings" && (
                 <SettingsTab planConfig={data.planConfig} plan={data.user.plan} />
               )}
@@ -1598,6 +1601,490 @@ function BillingTab() {
                 )}
               </div>
             ))}
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── Bulk Verify Tab ──────────────────────────────────────────────────────────
+
+interface BulkJobResultItem {
+  email: string;
+  domain?: string;
+  isDisposable: boolean;
+  reputationScore?: number;
+  riskLevel?: string;
+  isFreeEmail?: boolean;
+  isRoleAccount?: boolean;
+  mxValid?: boolean | null;
+  inboxSupport?: boolean | null;
+  error?: string;
+}
+
+interface BulkJob {
+  id: number;
+  userId: number;
+  status: "pending" | "processing" | "done" | "failed";
+  totalEmails: number;
+  processedCount: number;
+  disposableCount: number;
+  safeCount: number;
+  results: BulkJobResultItem[];
+  createdAt: string;
+  completedAt: string | null;
+}
+
+const PLAN_BULK_LIMIT: Record<string, number> = {
+  FREE: 0,
+  BASIC: 100,
+  PRO: 500,
+};
+
+function BulkVerifyTab({ plan }: { plan: string }) {
+  const limit = PLAN_BULK_LIMIT[plan] ?? 0;
+  const [inputMode, setInputMode] = useState<"paste" | "csv">("paste");
+  const [emailsText, setEmailsText] = useState("");
+  const [parsedEmails, setParsedEmails] = useState<string[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [activeJobId, setActiveJobId] = useState<number | null>(null);
+  const [activeJob, setActiveJob] = useState<BulkJob | null>(null);
+  const [filter, setFilter] = useState<"all" | "disposable" | "safe">("all");
+  const [jobs, setJobs] = useState<BulkJob[]>([]);
+  const [jobsLoading, setJobsLoading] = useState(true);
+  const [csvFileName, setCsvFileName] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const parseEmails = useCallback((text: string) => {
+    const list = text
+      .split(/[\n,;|\t]+/)
+      .map((e) => e.trim().toLowerCase())
+      .filter((e) => e.includes("@") && e.length > 4);
+    const unique = [...new Set(list)];
+    setParsedEmails(unique);
+  }, []);
+
+  useEffect(() => {
+    parseEmails(emailsText);
+  }, [emailsText, parseEmails]);
+
+  const loadJobs = useCallback(() => {
+    fetch("/api/bulk-jobs", { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => setJobs(Array.isArray(d) ? d : []))
+      .catch(() => {})
+      .finally(() => setJobsLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadJobs();
+  }, [loadJobs]);
+
+  useEffect(() => {
+    if (activeJobId === null) return;
+    const poll = () => {
+      fetch(`/api/bulk-jobs/${activeJobId}`, { credentials: "include" })
+        .then((r) => r.json())
+        .then((job: BulkJob) => {
+          setActiveJob(job);
+          if (job.status === "done" || job.status === "failed") {
+            loadJobs();
+          }
+        })
+        .catch(() => {});
+    };
+    poll();
+    const interval = setInterval(poll, 2000);
+    return () => clearInterval(interval);
+  }, [activeJobId, loadJobs]);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setCsvFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      setEmailsText(text);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleSubmit = async () => {
+    if (parsedEmails.length === 0) return;
+    setIsSubmitting(true);
+    setSubmitError(null);
+    try {
+      const r = await fetch("/api/bulk-jobs", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emails: parsedEmails }),
+      });
+      const data = await r.json();
+      if (!r.ok) {
+        setSubmitError(data.error || "Failed to submit job");
+        return;
+      }
+      setActiveJobId(data.jobId);
+      setActiveJob(null);
+      setEmailsText("");
+      setParsedEmails([]);
+      setCsvFileName(null);
+      setFilter("all");
+    } catch {
+      setSubmitError("Network error. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const isDone = activeJob?.status === "done";
+  const isFailed = activeJob?.status === "failed";
+  const isRunning = activeJob?.status === "processing" || activeJob?.status === "pending";
+  const progressPct =
+    activeJob && activeJob.totalEmails > 0
+      ? Math.round((activeJob.processedCount / activeJob.totalEmails) * 100)
+      : 0;
+
+  const results: BulkJobResultItem[] = activeJob?.results ?? [];
+  const disposableCount = results.filter((r) => r.isDisposable).length;
+  const safeCount = results.filter((r) => !r.isDisposable && !r.error).length;
+  const errorCount = results.filter((r) => !!r.error).length;
+
+  const filteredResults =
+    filter === "all"
+      ? results
+      : filter === "disposable"
+        ? results.filter((r) => r.isDisposable)
+        : results.filter((r) => !r.isDisposable && !r.error);
+
+  if (limit === 0) {
+    return (
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+        <div className="rounded-2xl border border-border bg-card p-8 text-center space-y-4">
+          <div className="mx-auto w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
+            <Layers className="h-7 w-7 text-primary" />
+          </div>
+          <div>
+            <h2 className="text-xl font-semibold">Bulk Email Verification</h2>
+            <p className="text-muted-foreground mt-1 text-sm max-w-md mx-auto">
+              Verify hundreds of emails at once, download results as CSV, and track job history. Available on paid plans.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-lg mx-auto text-left">
+            {[
+              { plan: "BASIC", emails: "100 emails/job" },
+              { plan: "PRO", emails: "500 emails/job" },
+            ].map((p) => (
+              <div key={p.plan} className="rounded-xl border border-border bg-background p-4 space-y-1">
+                <span className="text-xs font-semibold text-primary uppercase">{p.plan}</span>
+                <p className="text-sm font-medium">{p.emails}</p>
+              </div>
+            ))}
+          </div>
+          <Link href="/dashboard?tab=billing">
+            <button className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors text-sm">
+              <Zap className="h-4 w-4" />
+              Upgrade to unlock
+            </button>
+          </Link>
+        </div>
+      </motion.div>
+    );
+  }
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-semibold">Bulk Email Verification</h2>
+          <p className="text-sm text-muted-foreground">Verify up to {limit.toLocaleString()} emails per job</p>
+        </div>
+        {activeJobId !== null && (
+          <button
+            onClick={() => { setActiveJobId(null); setActiveJob(null); setFilter("all"); }}
+            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <RotateCcw className="h-4 w-4" />
+            New job
+          </button>
+        )}
+      </div>
+
+      {/* Input section — only shown when no active job */}
+      {activeJobId === null && (
+        <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
+          {/* Mode tabs */}
+          <div className="flex gap-1 p-1 bg-muted/40 rounded-lg w-fit">
+            {(["paste", "csv"] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => { setInputMode(m); setEmailsText(""); setParsedEmails([]); setCsvFileName(null); }}
+                className={`px-4 py-1.5 text-sm rounded-md font-medium transition-colors ${inputMode === m ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                {m === "paste" ? "Paste emails" : "Upload CSV"}
+              </button>
+            ))}
+          </div>
+
+          {inputMode === "paste" ? (
+            <textarea
+              value={emailsText}
+              onChange={(e) => setEmailsText(e.target.value)}
+              placeholder={"Paste emails separated by commas, semicolons, or new lines...\n\nexample@gmail.com\ntest@yahoo.com"}
+              className="w-full h-44 px-4 py-3 rounded-xl border border-border bg-background text-sm font-mono resize-none focus:outline-none focus:ring-2 focus:ring-primary/50 placeholder:text-muted-foreground/60"
+            />
+          ) : (
+            <div
+              onClick={() => fileRef.current?.click()}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                const file = e.dataTransfer.files?.[0];
+                if (!file) return;
+                setCsvFileName(file.name);
+                const reader = new FileReader();
+                reader.onload = (ev) => setEmailsText(ev.target?.result as string);
+                reader.readAsText(file);
+              }}
+              className="w-full h-44 rounded-xl border-2 border-dashed border-border hover:border-primary/50 bg-background flex flex-col items-center justify-center gap-2 cursor-pointer transition-colors"
+            >
+              <input ref={fileRef} type="file" accept=".csv,.txt" className="hidden" onChange={handleFileUpload} />
+              <Upload className="h-8 w-8 text-muted-foreground" />
+              {csvFileName ? (
+                <p className="text-sm font-medium">{csvFileName}</p>
+              ) : (
+                <>
+                  <p className="text-sm font-medium">Drop CSV here or click to browse</p>
+                  <p className="text-xs text-muted-foreground">One email per row or comma-separated</p>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Count preview */}
+          {parsedEmails.length > 0 && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">
+                <span className="font-semibold text-foreground">{parsedEmails.length}</span> unique email{parsedEmails.length !== 1 ? "s" : ""} detected
+              </span>
+              {parsedEmails.length > limit && (
+                <span className="text-destructive font-medium flex items-center gap-1">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  Exceeds plan limit of {limit}
+                </span>
+              )}
+            </div>
+          )}
+
+          {submitError && (
+            <p className="text-sm text-destructive flex items-center gap-1.5">
+              <XCircle className="h-4 w-4 shrink-0" />
+              {submitError}
+            </p>
+          )}
+
+          <button
+            onClick={handleSubmit}
+            disabled={isSubmitting || parsedEmails.length === 0 || parsedEmails.length > limit}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+          >
+            {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Layers className="h-4 w-4" />}
+            {isSubmitting ? "Submitting…" : `Verify ${parsedEmails.length > 0 ? parsedEmails.length : ""} Email${parsedEmails.length !== 1 ? "s" : ""}`}
+          </button>
+        </div>
+      )}
+
+      {/* Active job card */}
+      {activeJob !== null && (
+        <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
+          {/* Status header */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {isRunning && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
+              {isDone && <CheckCircle className="h-4 w-4 text-green-500" />}
+              {isFailed && <XCircle className="h-4 w-4 text-destructive" />}
+              <span className="font-medium capitalize">{activeJob.status}</span>
+              <span className="text-sm text-muted-foreground">· {activeJob.totalEmails} emails</span>
+            </div>
+            {isDone && (
+              <a
+                href={`/api/bulk-jobs/${activeJob.id}/download`}
+                download
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors text-sm font-medium"
+              >
+                <Download className="h-4 w-4" />
+                Download CSV
+              </a>
+            )}
+          </div>
+
+          {/* Progress bar */}
+          <div className="space-y-1.5">
+            <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
+              <div
+                className="h-full rounded-full bg-primary transition-all duration-500"
+                style={{ width: `${isDone ? 100 : progressPct}%` }}
+              />
+            </div>
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>{activeJob.processedCount} processed</span>
+              <span>{isDone ? "100%" : `${progressPct}%`}</span>
+            </div>
+          </div>
+
+          {/* Summary stats — shown once done */}
+          {isDone && results.length > 0 && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { label: "Total", value: results.length, icon: Layers, color: "text-foreground" },
+                { label: "Disposable", value: disposableCount, icon: XCircle, color: "text-destructive" },
+                { label: "Safe", value: safeCount, icon: CheckCircle, color: "text-green-500" },
+                { label: "Errors", value: errorCount, icon: Minus, color: "text-muted-foreground" },
+              ].map(({ label, value, icon: Icon, color }) => (
+                <div key={label} className="rounded-xl border border-border bg-background p-3 space-y-1">
+                  <div className="flex items-center gap-1.5">
+                    <Icon className={`h-3.5 w-3.5 ${color}`} />
+                    <span className="text-xs text-muted-foreground">{label}</span>
+                  </div>
+                  <p className={`text-xl font-bold ${color}`}>{value}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {results.length > 0 ? Math.round((value / results.length) * 100) : 0}%
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Results table */}
+          {isDone && results.length > 0 && (
+            <div className="space-y-3">
+              {/* Filter tabs */}
+              <div className="flex gap-1 p-1 bg-muted/40 rounded-lg w-fit">
+                {(["all", "disposable", "safe"] as const).map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => setFilter(f)}
+                    className={`px-3 py-1 text-xs rounded-md font-medium capitalize transition-colors ${filter === f ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                  >
+                    {f} {f === "all" ? `(${results.length})` : f === "disposable" ? `(${disposableCount})` : `(${safeCount})`}
+                  </button>
+                ))}
+              </div>
+
+              <div className="overflow-x-auto rounded-xl border border-border">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border bg-muted/30">
+                      <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Email</th>
+                      <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Domain</th>
+                      <th className="text-center px-4 py-2.5 font-medium text-muted-foreground">Score</th>
+                      <th className="text-center px-4 py-2.5 font-medium text-muted-foreground">Result</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredResults.map((row, i) => (
+                      <tr key={i} className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
+                        <td className="px-4 py-2.5 font-mono text-xs truncate max-w-[180px]">{row.email}</td>
+                        <td className="px-4 py-2.5 text-muted-foreground text-xs">{row.domain ?? "—"}</td>
+                        <td className="px-4 py-2.5 text-center text-xs">
+                          {row.reputationScore !== undefined ? (
+                            <span className={`font-semibold ${row.reputationScore >= 70 ? "text-destructive" : row.reputationScore >= 40 ? "text-yellow-500" : "text-green-500"}`}>
+                              {row.reputationScore}
+                            </span>
+                          ) : "—"}
+                        </td>
+                        <td className="px-4 py-2.5 text-center">
+                          {row.error ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted text-muted-foreground text-xs">
+                              Error
+                            </span>
+                          ) : row.isDisposable ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-destructive/10 text-destructive text-xs font-medium">
+                              Disposable
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-500/10 text-green-600 dark:text-green-400 text-xs font-medium">
+                              Safe
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Job history */}
+      <div className="rounded-2xl border border-border bg-card p-6 space-y-3">
+        <h3 className="font-semibold text-sm">Job History</h3>
+        {jobsLoading ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Loading…
+          </div>
+        ) : jobs.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No jobs yet. Submit your first bulk verification above.</p>
+        ) : (
+          <div className="overflow-x-auto rounded-xl border border-border">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-muted/30">
+                  <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Job ID</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Emails</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Status</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Created</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Download</th>
+                </tr>
+              </thead>
+              <tbody>
+                {jobs.map((job) => (
+                  <tr
+                    key={job.id}
+                    className="border-b border-border last:border-0 hover:bg-muted/20 cursor-pointer transition-colors"
+                    onClick={() => { setActiveJobId(job.id); setActiveJob(job); setFilter("all"); }}
+                  >
+                    <td className="px-4 py-2.5 font-mono text-xs text-muted-foreground">#{job.id}</td>
+                    <td className="px-4 py-2.5">{job.totalEmails}</td>
+                    <td className="px-4 py-2.5">
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                        job.status === "done"
+                          ? "bg-green-500/10 text-green-600 dark:text-green-400"
+                          : job.status === "failed"
+                            ? "bg-destructive/10 text-destructive"
+                            : "bg-primary/10 text-primary"
+                      }`}>
+                        {job.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-muted-foreground">
+                      {new Date(job.createdAt).toLocaleDateString()}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      {job.status === "done" && (
+                        <a
+                          href={`/api/bulk-jobs/${job.id}/download`}
+                          download
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex items-center gap-1 text-primary hover:underline text-xs"
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                          CSV
+                        </a>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>

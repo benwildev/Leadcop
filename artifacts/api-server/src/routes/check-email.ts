@@ -263,7 +263,7 @@ interface ChecksResult {
   catchAll: boolean | null | undefined;
 }
 
-async function performChecks(
+export async function performChecks(
   email: string,
   userId: number,
   planConfig: Awaited<ReturnType<typeof getPlanConfig>>
