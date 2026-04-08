@@ -1238,7 +1238,55 @@ function SettingsTab({ planConfig, plan }: { planConfig?: DashboardPlanConfig; p
       <WebsitesPanel planConfig={planConfig} plan={plan} />
       <PagesPanel planConfig={planConfig} plan={plan} />
       <FreeEmailCheckPanel />
+      <WordPressPluginPanel />
     </div>
+  );
+}
+
+function WordPressPluginPanel() {
+  return (
+    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="glass-card rounded-2xl p-6">
+      <div className="flex items-center gap-2 mb-1">
+        <Download className="h-4 w-4 text-primary" />
+        <h2 className="font-heading text-base font-semibold text-foreground">WordPress Plugin</h2>
+      </div>
+      <p className="text-xs text-muted-foreground mb-5">
+        Protect your WordPress forms with server-side disposable email detection. Supports WooCommerce, Contact Form 7, WPForms, and Gravity Forms — no coding required.
+      </p>
+      <div className="space-y-3 mb-5">
+        {[
+          "WordPress registration & comment forms",
+          "WooCommerce checkout & My Account",
+          "Contact Form 7 · WPForms · Gravity Forms",
+          "Fail-open: forms work even if API is unreachable",
+        ].map(feature => (
+          <div key={feature} className="flex items-center gap-2 text-xs text-muted-foreground">
+            <CheckCircle2 className="h-3.5 w-3.5 text-green-500 flex-shrink-0" />
+            {feature}
+          </div>
+        ))}
+      </div>
+      <div className="flex gap-3 flex-wrap">
+        <a
+          href="/downloads/leadcop-email-validator.zip"
+          download
+          className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+        >
+          <Download className="h-4 w-4" />
+          Download Plugin
+        </a>
+        <Link
+          href="/docs#wordpress"
+          className="inline-flex items-center gap-2 rounded-xl border border-border bg-muted/30 px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted transition-colors"
+        >
+          <FileText className="h-4 w-4" />
+          Setup Guide
+        </Link>
+      </div>
+      <p className="text-[10px] text-muted-foreground mt-4">
+        Version 1.0.0 · Requires WordPress 5.6+ and PHP 7.4+
+      </p>
+    </motion.div>
   );
 }
 

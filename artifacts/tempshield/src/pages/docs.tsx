@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Navbar, Footer, PageTransition } from "@/components/Layout";
-import { Copy, Check, Terminal } from "lucide-react";
+import { Copy, Check, Terminal, Download } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 function CodeBlock({ code, lang = "bash" }: { code: string; lang?: string }) {
@@ -318,6 +318,36 @@ curl -X POST https://yourdomain.com/api/check-email \\
 # 429 — Rate limit exceeded
 { "error": "Rate limit exceeded. Please upgrade your plan." }`,
   },
+  {
+    id: "wordpress",
+    label: "WordPress Plugin",
+    icon: "🔌",
+    steps: [
+      { title: "Download the plugin", desc: "Download the LeadCop Email Validator plugin zip from your dashboard or the link below." },
+      { title: "Install in WordPress", desc: "Go to Plugins → Add New → Upload Plugin, select the zip, and click Install Now → Activate." },
+      { title: "Enter your API key", desc: "Go to LeadCop in your WP admin menu, paste your API key, and save. That's it — all supported forms are protected automatically." },
+    ],
+    code: `; WordPress Plugin — no code required!
+; After activating the plugin, navigate to:
+;   WordPress Admin → LeadCop → General Settings
+; Paste your API key and click Save Settings.
+
+; Supported form systems (toggle each on/off):
+;   ✅ WordPress registration form
+;   ✅ WordPress comment form
+;   ✅ WooCommerce checkout & My Account
+;   ✅ Contact Form 7
+;   ✅ WPForms
+;   ✅ Gravity Forms
+
+; Validation Rules (LeadCop → Validation Rules):
+;   Block disposable emails  → ON  (recommended)
+;   Free email providers     → Off | Warn | Block
+;   No MX records            → Off | Warn | Block
+
+; All validation is server-side — it cannot be bypassed by bots.
+; The plugin fails open: if the API is unreachable, forms still work.`,
+  },
 ];
 
 export default function DocsPage() {
@@ -435,6 +465,16 @@ export default function DocsPage() {
                         </li>
                       ))}
                     </ol>
+                    {activeTab === "wordpress" && (
+                      <a
+                        href="/downloads/leadcop-email-validator.zip"
+                        download
+                        className="mt-6 inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+                      >
+                        <Download className="h-4 w-4" />
+                        Download Plugin (.zip)
+                      </a>
+                    )}
                   </div>
                   <CodeBlock lang={current.label} code={current.code} />
                 </motion.div>

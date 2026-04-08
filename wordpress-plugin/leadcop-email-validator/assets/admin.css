@@ -1,0 +1,199 @@
+/* LeadCop Email Validator — Admin Styles */
+
+.leadcop-wrap {
+    max-width: 900px;
+}
+
+.leadcop-header {
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+    border-radius: 12px;
+    padding: 28px 32px;
+    margin: 20px 0 24px;
+    color: #fff;
+}
+
+.leadcop-logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 6px;
+}
+
+.leadcop-logo .dashicons {
+    font-size: 28px;
+    width: 28px;
+    height: 28px;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.leadcop-logo h1 {
+    font-size: 22px;
+    font-weight: 700;
+    color: #fff;
+    margin: 0;
+    padding: 0;
+    border: none;
+}
+
+.leadcop-tagline {
+    margin: 0;
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+/* Tabs */
+.leadcop-tabs.nav-tab-wrapper {
+    border-bottom: 1px solid #c3c4c7;
+    margin-bottom: 0;
+}
+
+.leadcop-tabs .nav-tab {
+    font-size: 14px;
+    padding: 10px 20px;
+}
+
+.leadcop-tabs .nav-tab-active {
+    background: #fff;
+    border-bottom-color: #fff;
+    color: #4f46e5;
+}
+
+/* Section */
+.leadcop-section {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    padding: 24px 32px;
+}
+
+.leadcop-section h2 {
+    font-size: 16px;
+    font-weight: 600;
+    color: #1d2327;
+    margin-top: 0;
+}
+
+.leadcop-mt {
+    margin-top: 28px !important;
+}
+
+.leadcop-desc {
+    color: #50575e;
+    font-size: 13px;
+    margin-bottom: 16px;
+}
+
+/* Form table tweaks */
+.leadcop-section .form-table th {
+    width: 200px;
+    padding: 16px 20px 16px 0;
+    font-weight: 600;
+    font-size: 13px;
+}
+
+.leadcop-section .form-table td {
+    padding: 14px 0;
+}
+
+/* Toggle labels */
+.leadcop-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #1d2327;
+    cursor: pointer;
+    margin-bottom: 4px;
+}
+
+.leadcop-toggle input[type="checkbox"] {
+    margin: 0;
+}
+
+/* Message field */
+.leadcop-msg-field {
+    margin-top: 12px;
+}
+
+.leadcop-msg-field label {
+    display: block;
+    font-size: 12px;
+    color: #50575e;
+    margin-bottom: 6px;
+}
+
+.leadcop-not-installed {
+    color: #999;
+    font-style: italic;
+    font-size: 13px;
+    margin: 0;
+}
+
+/* Test email tool */
+.leadcop-test-tool {
+    margin-bottom: 20px;
+}
+
+.leadcop-test-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.leadcop-test-row input[type="email"] {
+    width: 320px;
+}
+
+.leadcop-test-result {
+    margin-top: 16px;
+    padding: 14px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.leadcop-test-result.is-error {
+    background: #fef2f2;
+    border: 1px solid #fca5a5;
+    color: #dc2626;
+}
+
+.leadcop-test-result.is-warning {
+    background: #fffbeb;
+    border: 1px solid #fcd34d;
+    color: #92400e;
+}
+
+.leadcop-test-result.is-ok {
+    background: #f0fdf4;
+    border: 1px solid #86efac;
+    color: #15803d;
+}
+
+.leadcop-test-result .result-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.leadcop-test-result .result-label {
+    font-weight: 600;
+    min-width: 140px;
+}
+
+.leadcop-spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid #c3c4c7;
+    border-top-color: #4f46e5;
+    border-radius: 50%;
+    animation: leadcop-spin 0.7s linear infinite;
+    vertical-align: middle;
+    margin-right: 6px;
+}
+
+@keyframes leadcop-spin {
+    to { transform: rotate(360deg); }
+}
