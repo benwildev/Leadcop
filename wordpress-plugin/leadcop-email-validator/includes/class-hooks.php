@@ -5,11 +5,13 @@ class LeadCop_Hooks {
 
     private static $decision_cache = array();
 
-    // Per-request warning state for integrations whose output hook
-    // fires in the same PHP request as their validation hook.
-    private static $cf7_warn      = '';
-    private static $wpforms_warn  = array();
-    private static $gf_warn       = array();
+    // Per-request warning state (validation → output, same AJAX request).
+    private static $cf7_warn     = '';
+    private static $wpforms_warn = array();
+    private static $gf_warn      = array();
+
+    // WP comment warn message; transferred to a short-lived cookie in comment_post.
+    private static $comment_warn_msg = '';
 
     public static function init() {
         if ( get_option( 'leadcop_hook_wp_register', '1' ) === '1' ) {
@@ -19,6 +21,7 @@ class LeadCop_Hooks {
 
         if ( get_option( 'leadcop_hook_wp_comment', '1' ) === '1' ) {
             add_filter( 'preprocess_comment', array( __CLASS__, 'validate_wp_comment' ) );
+            add_action( 'wp_footer', array( __CLASS__, 'render_comment_warn_footer' ) );
         }
 
         if ( class_exists( 'WooCommerce' ) ) {
@@ -105,21 +108,55 @@ class LeadCop_Hooks {
         if ( $d['block'] ) {
             wp_die( esc_html( $d['message'] ), esc_html__( 'Email Error', 'leadcop' ), array( 'back_link' => true ) );
         } elseif ( $d['warn'] ) {
-            // Comment proceeds. Store warning as comment meta (visible in admin).
-            add_action( 'comment_post', array( __CLASS__, 'save_comment_warn_meta' ) );
+            // Comment is allowed. Store the warning message so it can be set as
+            // a cookie in comment_post (which fires before the redirect), then
+            // rendered as a visible banner on the destination page via wp_footer.
+            self::$comment_warn_msg = $d['message'];
+            add_action( 'comment_post', array( __CLASS__, 'set_comment_warn_cookie' ), 5 );
         }
         return $commentdata;
     }
 
-    public static function save_comment_warn_meta( $comment_id ) {
-        $comment = get_comment( $comment_id );
-        if ( ! $comment ) {
+    public static function set_comment_warn_cookie( $comment_id ) {
+        if ( ! self::$comment_warn_msg ) {
             return;
         }
-        $d = self::get_decision( $comment->comment_author_email );
-        if ( $d['warn'] ) {
-            add_comment_meta( $comment_id, '_leadcop_warning', $d['message'], true );
+        // Cookie lasts 60 s — enough to survive the post-comment redirect.
+        setcookie(
+            'leadcop_cwarn',
+            self::$comment_warn_msg,
+            time() + 60,
+            defined( 'COOKIEPATH' ) ? COOKIEPATH : '/',
+            defined( 'COOKIE_DOMAIN' ) ? COOKIE_DOMAIN : '',
+            is_ssl(),
+            true
+        );
+    }
+
+    /**
+     * Render the comment warning as a banner on the page the user lands on
+     * after submitting their comment (wp_footer on the destination page).
+     * Uses a small JS snippet so the banner appears near the comments section.
+     */
+    public static function render_comment_warn_footer() {
+        if ( empty( $_COOKIE['leadcop_cwarn'] ) ) {
+            return;
         }
+        $msg = sanitize_text_field( wp_unslash( $_COOKIE['leadcop_cwarn'] ) );
+        // Clear the cookie immediately.
+        setcookie( 'leadcop_cwarn', '', time() - 3600, defined( 'COOKIEPATH' ) ? COOKIEPATH : '/' );
+        $style = esc_js( self::warn_style() );
+        $json  = wp_json_encode( $msg );
+        echo "<script>
+(function(){
+    var msg=" . $json . ";
+    var el=document.createElement('p');
+    el.style.cssText='" . $style . "';
+    el.textContent=msg;
+    var target=document.querySelector('#respond,#comments,#comment');
+    if(target){target.parentNode.insertBefore(el,target);}else{document.body.prepend(el);}
+})();
+</script>\n";
     }
 
     // ── WooCommerce checkout ──────────────────────────────────────────────────────

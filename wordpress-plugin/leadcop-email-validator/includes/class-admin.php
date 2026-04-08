@@ -165,6 +165,7 @@ class LeadCop_Admin {
                                 <th scope="row"><?php esc_html_e( 'Disposable Emails', 'leadcop' ); ?></th>
                                 <td>
                                     <label class="leadcop-toggle">
+                                        <input type="hidden" name="leadcop_block_disposable" value="0" />
                                         <input type="checkbox" name="leadcop_block_disposable" value="1" <?php checked( get_option( 'leadcop_block_disposable', '1' ), '1' ); ?> />
                                         <?php esc_html_e( 'Block disposable / burner email addresses', 'leadcop' ); ?>
                                     </label>
@@ -247,10 +248,12 @@ class LeadCop_Admin {
                                 <th scope="row"><?php esc_html_e( 'WordPress Core', 'leadcop' ); ?></th>
                                 <td>
                                     <label class="leadcop-toggle">
+                                        <input type="hidden" name="leadcop_hook_wp_register" value="0" />
                                         <input type="checkbox" name="leadcop_hook_wp_register" value="1" <?php checked( get_option( 'leadcop_hook_wp_register', '1' ), '1' ); ?> />
                                         <?php esc_html_e( 'User registration form', 'leadcop' ); ?>
                                     </label><br>
                                     <label class="leadcop-toggle">
+                                        <input type="hidden" name="leadcop_hook_wp_comment" value="0" />
                                         <input type="checkbox" name="leadcop_hook_wp_comment" value="1" <?php checked( get_option( 'leadcop_hook_wp_comment', '1' ), '1' ); ?> />
                                         <?php esc_html_e( 'Comment submission form', 'leadcop' ); ?>
                                     </label>
@@ -264,10 +267,12 @@ class LeadCop_Admin {
                                         <p class="leadcop-not-installed"><?php esc_html_e( 'WooCommerce is not installed or active.', 'leadcop' ); ?></p>
                                     <?php else : ?>
                                         <label class="leadcop-toggle">
+                                            <input type="hidden" name="leadcop_hook_woo_checkout" value="0" />
                                             <input type="checkbox" name="leadcop_hook_woo_checkout" value="1" <?php checked( get_option( 'leadcop_hook_woo_checkout', '1' ), '1' ); ?> />
                                             <?php esc_html_e( 'Checkout billing email', 'leadcop' ); ?>
                                         </label><br>
                                         <label class="leadcop-toggle">
+                                            <input type="hidden" name="leadcop_hook_woo_account" value="0" />
                                             <input type="checkbox" name="leadcop_hook_woo_account" value="1" <?php checked( get_option( 'leadcop_hook_woo_account', '1' ), '1' ); ?> />
                                             <?php esc_html_e( 'My Account registration form', 'leadcop' ); ?>
                                         </label>
@@ -282,6 +287,7 @@ class LeadCop_Admin {
                                         <p class="leadcop-not-installed"><?php esc_html_e( 'Contact Form 7 is not installed or active.', 'leadcop' ); ?></p>
                                     <?php else : ?>
                                         <label class="leadcop-toggle">
+                                            <input type="hidden" name="leadcop_hook_cf7" value="0" />
                                             <input type="checkbox" name="leadcop_hook_cf7" value="1" <?php checked( get_option( 'leadcop_hook_cf7', '1' ), '1' ); ?> />
                                             <?php esc_html_e( 'Validate email fields in all CF7 forms', 'leadcop' ); ?>
                                         </label>
@@ -296,6 +302,7 @@ class LeadCop_Admin {
                                         <p class="leadcop-not-installed"><?php esc_html_e( 'WPForms is not installed or active.', 'leadcop' ); ?></p>
                                     <?php else : ?>
                                         <label class="leadcop-toggle">
+                                            <input type="hidden" name="leadcop_hook_wpforms" value="0" />
                                             <input type="checkbox" name="leadcop_hook_wpforms" value="1" <?php checked( get_option( 'leadcop_hook_wpforms', '1' ), '1' ); ?> />
                                             <?php esc_html_e( 'Validate email fields in all WPForms forms', 'leadcop' ); ?>
                                         </label>
@@ -310,6 +317,7 @@ class LeadCop_Admin {
                                         <p class="leadcop-not-installed"><?php esc_html_e( 'Gravity Forms is not installed or active.', 'leadcop' ); ?></p>
                                     <?php else : ?>
                                         <label class="leadcop-toggle">
+                                            <input type="hidden" name="leadcop_hook_gravityforms" value="0" />
                                             <input type="checkbox" name="leadcop_hook_gravityforms" value="1" <?php checked( get_option( 'leadcop_hook_gravityforms', '1' ), '1' ); ?> />
                                             <?php esc_html_e( 'Validate email fields in all Gravity Forms', 'leadcop' ); ?>
                                         </label>
