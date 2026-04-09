@@ -138,11 +138,13 @@ export interface AdminUser {
   id: number;
   name: string;
   email: string;
+  apiKey: string;
   role: AdminUserRole;
   plan: AdminUserPlan;
   requestCount: number;
   requestLimit: number;
   createdAt: string;
+  bulkJobCount?: number;
 }
 
 export interface AdminUsersResponse {
