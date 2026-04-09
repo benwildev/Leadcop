@@ -197,3 +197,145 @@
 @keyframes leadcop-spin {
     to { transform: rotate(360deg); }
 }
+
+/* ── Plan Status Card ──────────────────────────────────────────────────────── */
+
+.leadcop-status-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 18px 20px;
+    margin-bottom: 24px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+.leadcop-status-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.leadcop-status-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.leadcop-plan-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    border: 1px solid;
+}
+
+.leadcop-usage-label {
+    font-size: 13px;
+    color: #374151;
+}
+
+.leadcop-reset-label {
+    font-size: 12px;
+    color: #9ca3af;
+}
+
+.leadcop-usage-bar-wrap {
+    height: 6px;
+    background: #f3f4f6;
+    border-radius: 99px;
+    overflow: hidden;
+    margin-bottom: 14px;
+}
+
+.leadcop-usage-bar {
+    height: 100%;
+    border-radius: 99px;
+    transition: width 0.4s ease;
+}
+
+.leadcop-feature-pills {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 4px;
+}
+
+.leadcop-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid;
+}
+
+.leadcop-pill.pill-on {
+    background: #f0fdf4;
+    color: #15803d;
+    border-color: #bbf7d0;
+}
+
+.leadcop-pill.pill-off {
+    background: #f9fafb;
+    color: #9ca3af;
+    border-color: #e5e7eb;
+}
+
+.leadcop-upgrade-bar {
+    margin-top: 12px;
+    padding: 10px 14px;
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    border-radius: 7px;
+    font-size: 13px;
+    color: #92400e;
+}
+
+.leadcop-upgrade-link {
+    font-weight: 600;
+    color: #d97706;
+    text-decoration: none;
+}
+
+.leadcop-upgrade-link:hover {
+    color: #b45309;
+    text-decoration: underline;
+}
+
+/* ── Feature gate notice ───────────────────────────────────────────────────── */
+
+.leadcop-plan-gate {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 12px;
+    background: #fef9c3;
+    border: 1px solid #fde047;
+    border-radius: 6px;
+    font-size: 13px;
+    color: #713f12;
+    margin-bottom: 8px;
+}
+
+.leadcop-gate-badge {
+    display: inline-block;
+    padding: 1px 7px;
+    background: #4f46e5;
+    color: #fff;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    flex-shrink: 0;
+}

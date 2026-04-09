@@ -39,8 +39,9 @@ class LeadCop_API {
                 'timeout'     => 5,
                 'redirection' => 0,
                 'headers'     => array(
-                    'Content-Type'  => 'application/json',
-                    'Authorization' => 'Bearer ' . $api_key,
+                    'Content-Type'    => 'application/json',
+                    'Authorization'   => 'Bearer ' . $api_key,
+                    'X-LeadCop-Source' => 'wordpress-plugin/' . LEADCOP_VERSION,
                 ),
                 'body'        => wp_json_encode( array( 'email' => $email ) ),
             )
@@ -70,6 +71,52 @@ class LeadCop_API {
         }
 
         set_transient( $cache_key, $body, self::CACHE_TTL );
+        return $body;
+    }
+
+    /**
+     * Fetch the account status from the LeadCop API (plan, usage, features).
+     * Cached in a WP transient for 5 minutes.
+     *
+     * @return array|null  Decoded status array, or null on failure / missing key.
+     */
+    public static function get_account_status() {
+        $api_key = get_option( 'leadcop_api_key', '' );
+        $api_url = rtrim( get_option( 'leadcop_api_url', 'https://leadcop.io' ), '/' );
+
+        if ( empty( $api_key ) ) {
+            return null;
+        }
+
+        $cache_key = 'lc_acct_status';
+        $cached    = get_transient( $cache_key );
+        if ( $cached !== false ) {
+            return $cached;
+        }
+
+        $response = wp_remote_get(
+            $api_url . '/api/account/status',
+            array(
+                'timeout' => 5,
+                'headers' => array(
+                    'Authorization'    => 'Bearer ' . $api_key,
+                    'X-LeadCop-Source' => 'wordpress-plugin/' . LEADCOP_VERSION,
+                ),
+            )
+        );
+
+        if ( is_wp_error( $response ) ) {
+            return null;
+        }
+
+        $code = wp_remote_retrieve_response_code( $response );
+        $body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+        if ( $code !== 200 || ! is_array( $body ) ) {
+            return null;
+        }
+
+        set_transient( $cache_key, $body, 5 * MINUTE_IN_SECONDS );
         return $body;
     }
 

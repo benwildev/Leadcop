@@ -200,6 +200,72 @@ class LeadCop_Admin {
 
                 <?php if ( $active_tab === 'general' ) : ?>
                     <div class="leadcop-section">
+
+                        <?php
+                        $status = LeadCop_API::get_account_status();
+                        if ( $status ) :
+                            $plan          = isset( $status['plan'] ) ? strtoupper( $status['plan'] ) : 'FREE';
+                            $used          = isset( $status['requestsUsed'] ) ? (int) $status['requestsUsed'] : 0;
+                            $limit         = isset( $status['requestLimit'] ) ? (int) $status['requestLimit'] : 10;
+                            $reset_raw     = isset( $status['resetDate'] ) ? $status['resetDate'] : '';
+                            $reset_display = $reset_raw ? date_i18n( get_option( 'date_format' ), strtotime( $reset_raw ) ) : '—';
+                            $pct           = $limit > 0 ? min( 100, round( $used / $limit * 100 ) ) : 0;
+                            $features      = isset( $status['features'] ) && is_array( $status['features'] ) ? $status['features'] : array();
+                            $mx_ok         = ! empty( $features['mxDetection'] );
+                            $smtp_ok       = ! empty( $features['smtpProbe'] );
+                            $bulk_ok       = ! empty( $features['bulkVerification'] );
+                            $bar_color     = $pct >= 90 ? '#dc2626' : ( $pct >= 70 ? '#d97706' : '#4f46e5' );
+                            $plan_colors   = array(
+                                'FREE'  => array( 'bg' => '#f3f4f6', 'text' => '#374151', 'border' => '#d1d5db' ),
+                                'BASIC' => array( 'bg' => '#eff6ff', 'text' => '#1d4ed8', 'border' => '#bfdbfe' ),
+                                'PRO'   => array( 'bg' => '#f5f3ff', 'text' => '#6d28d9', 'border' => '#ddd6fe' ),
+                            );
+                            $pc = isset( $plan_colors[ $plan ] ) ? $plan_colors[ $plan ] : $plan_colors['FREE'];
+                        ?>
+                        <div class="leadcop-status-card">
+                            <div class="leadcop-status-top">
+                                <div class="leadcop-status-left">
+                                    <span class="leadcop-plan-badge" style="background:<?php echo esc_attr( $pc['bg'] ); ?>;color:<?php echo esc_attr( $pc['text'] ); ?>;border-color:<?php echo esc_attr( $pc['border'] ); ?>;">
+                                        <?php echo esc_html( $plan ); ?> <?php esc_html_e( 'Plan', 'leadcop' ); ?>
+                                    </span>
+                                    <span class="leadcop-usage-label">
+                                        <?php printf( esc_html__( '%1$s / %2$s requests used this month', 'leadcop' ), number_format_i18n( $used ), number_format_i18n( $limit ) ); ?>
+                                    </span>
+                                </div>
+                                <div class="leadcop-status-right">
+                                    <span class="leadcop-reset-label"><?php printf( esc_html__( 'Resets %s', 'leadcop' ), $reset_display ); ?></span>
+                                </div>
+                            </div>
+
+                            <div class="leadcop-usage-bar-wrap">
+                                <div class="leadcop-usage-bar" style="width:<?php echo esc_attr( $pct ); ?>%;background:<?php echo esc_attr( $bar_color ); ?>;"></div>
+                            </div>
+
+                            <div class="leadcop-feature-pills">
+                                <span class="leadcop-pill <?php echo $mx_ok   ? 'pill-on' : 'pill-off'; ?>">
+                                    <?php echo $mx_ok ? '&#10003;' : '&#215;'; ?> <?php esc_html_e( 'MX Detection', 'leadcop' ); ?>
+                                </span>
+                                <span class="leadcop-pill <?php echo $bulk_ok ? 'pill-on' : 'pill-off'; ?>">
+                                    <?php echo $bulk_ok ? '&#10003;' : '&#215;'; ?> <?php esc_html_e( 'Bulk Verification', 'leadcop' ); ?>
+                                </span>
+                                <span class="leadcop-pill <?php echo $smtp_ok ? 'pill-on' : 'pill-off'; ?>">
+                                    <?php echo $smtp_ok ? '&#10003;' : '&#215;'; ?> <?php esc_html_e( 'SMTP Probe', 'leadcop' ); ?>
+                                </span>
+                            </div>
+
+                            <?php if ( $plan !== 'PRO' ) : ?>
+                            <div class="leadcop-upgrade-bar">
+                                <?php if ( $plan === 'FREE' ) : ?>
+                                    <?php esc_html_e( 'You are on the free plan (10 checks/month). Upgrade to unlock MX detection, bulk verification, and more.', 'leadcop' ); ?>
+                                <?php else : ?>
+                                    <?php esc_html_e( 'Upgrade to PRO for SMTP probing, catch-all detection, and 10,000 checks/month.', 'leadcop' ); ?>
+                                <?php endif; ?>
+                                &nbsp;<a href="https://leadcop.io/pricing" target="_blank" class="leadcop-upgrade-link"><?php esc_html_e( 'View plans &rarr;', 'leadcop' ); ?></a>
+                            </div>
+                            <?php endif; ?>
+                        </div>
+                        <?php endif; ?>
+
                         <h2><?php esc_html_e( 'API Configuration', 'leadcop' ); ?></h2>
                         <table class="form-table" role="presentation">
                             <tr>
@@ -281,6 +347,13 @@ class LeadCop_Admin {
                     <div class="leadcop-section">
                         <h2><?php esc_html_e( 'Validation Rules', 'leadcop' ); ?></h2>
                         <p class="description leadcop-desc"><?php esc_html_e( 'Configure how the plugin responds to each type of email address.', 'leadcop' ); ?></p>
+                        <?php
+                        $rules_status   = LeadCop_API::get_account_status();
+                        $rules_features = ( $rules_status && isset( $rules_status['features'] ) ) ? $rules_status['features'] : array();
+                        $rules_plan     = ( $rules_status && isset( $rules_status['plan'] ) ) ? strtoupper( $rules_status['plan'] ) : null;
+                        $r_mx_ok        = ! empty( $rules_features['mxDetection'] );
+                        $r_smtp_ok      = ! empty( $rules_features['smtpProbe'] );
+                        ?>
 
                         <table class="form-table" role="presentation">
 
@@ -331,7 +404,14 @@ class LeadCop_Admin {
                             <tr>
                                 <th scope="row"><?php esc_html_e( 'No MX Records', 'leadcop' ); ?></th>
                                 <td>
-                                    <select name="leadcop_mx_action">
+                                    <?php if ( $rules_plan !== null && ! $r_mx_ok ) : ?>
+                                    <div class="leadcop-plan-gate">
+                                        <span class="leadcop-gate-badge">BASIC+</span>
+                                        <?php esc_html_e( 'MX detection is not available on your current plan. Upgrade to BASIC or PRO to use this rule.', 'leadcop' ); ?>
+                                        <a href="https://leadcop.io/pricing" target="_blank"><?php esc_html_e( 'Upgrade &rarr;', 'leadcop' ); ?></a>
+                                    </div>
+                                    <?php endif; ?>
+                                    <select name="leadcop_mx_action" <?php echo ( $rules_plan !== null && ! $r_mx_ok ) ? 'disabled style="opacity:0.5;"' : ''; ?>>
                                         <?php
                                         $current_mx = get_option( 'leadcop_mx_action', 'off' );
                                         $options = array(
