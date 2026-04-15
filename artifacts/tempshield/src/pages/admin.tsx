@@ -19,7 +19,7 @@ import {
   Search, ChevronLeft, ChevronRight, LogOut, ArrowLeft, Menu,
   PieChart, BarChart3, Globe, FileText, Zap, Lock, Plus, Mail, Send,
   Upload, Download, Paperclip, TrendingUp, DollarSign, Image, Tag,
-  MessageSquare, AlertCircle, Clock, CheckCircle, XCircle,
+  MessageSquare, AlertCircle, Clock, CheckCircle, XCircle, ExternalLink,
 } from "lucide-react";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import {
@@ -2460,6 +2460,8 @@ type SupportMessage = {
   ticketId: number;
   senderRole: string;
   message: string;
+  attachmentUrl?: string | null;
+  attachmentName?: string | null;
   createdAt: string;
 };
 
@@ -2477,9 +2479,36 @@ const CATEGORY_LABELS: Record<string, string> = {
   feature: "Feature Request",
 };
 
+const MAX_ATTACH_SIZE = 10 * 1024 * 1024;
+const ALLOWED_ATTACH = /\.(jpg|jpeg|png|gif|webp|pdf|txt|doc|docx|csv|zip)$/i;
+
+function isAttachImage(url: string) {
+  return /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(url);
+}
+
+function AdminAttachmentPreview({ url, name }: { url: string; name?: string | null }) {
+  if (isAttachImage(url)) {
+    return (
+      <a href={url} target="_blank" rel="noopener noreferrer" className="block mt-2">
+        <img src={url} alt={name ?? "attachment"} className="max-w-[200px] max-h-[140px] rounded-xl object-cover border border-border hover:opacity-90 transition-opacity" />
+      </a>
+    );
+  }
+  return (
+    <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 mt-2 px-3 py-1.5 rounded-xl bg-muted/60 border border-border text-xs text-foreground hover:bg-muted transition-colors">
+      <FileText className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+      <span className="truncate max-w-[140px]">{name ?? "attachment"}</span>
+      <ExternalLink className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+    </a>
+  );
+}
+
 function AdminTicketDetail({ ticketId, onBack }: { ticketId: number; onBack: () => void }) {
   const qc = useQueryClient();
   const [reply, setReply] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [fileError, setFileError] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [sending, setSending] = useState(false);
   const [newStatus, setNewStatus] = useState<string>("");
   const [updatingStatus, setUpdatingStatus] = useState(false);
@@ -2513,18 +2542,31 @@ function AdminTicketDetail({ ticketId, onBack }: { ticketId: number; onBack: () 
     }
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    setFileError("");
+    if (!f) { setFile(null); return; }
+    if (f.size > MAX_ATTACH_SIZE) { setFileError("File must be under 10 MB"); return; }
+    if (!ALLOWED_ATTACH.test(f.name)) { setFileError("File type not allowed"); return; }
+    setFile(f);
+  };
+
   const handleReply = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!reply.trim()) return;
+    if (!reply.trim() && !file) return;
     setSending(true);
     try {
+      const fd = new FormData();
+      fd.append("message", reply.trim());
+      if (file) fd.append("attachment", file);
       await fetch(`/api/support/admin/tickets/${ticketId}/reply`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ message: reply.trim() }),
+        body: fd,
       });
       setReply("");
+      setFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
       qc.invalidateQueries({ queryKey: [`/api/support/admin/tickets/${ticketId}`] });
       qc.invalidateQueries({ queryKey: ["/api/support/admin/tickets"] });
     } finally {
@@ -2592,7 +2634,10 @@ function AdminTicketDetail({ ticketId, onBack }: { ticketId: number; onBack: () 
                   <div className={`inline-block px-4 py-3 rounded-2xl text-sm text-foreground ${
                     isAdmin ? "bg-primary/15 rounded-tr-sm" : "bg-muted/40 rounded-tl-sm"
                   }`}>
-                    <p className="whitespace-pre-wrap">{msg.message}</p>
+                    {msg.message && <p className="whitespace-pre-wrap">{msg.message}</p>}
+                    {msg.attachmentUrl && (
+                      <AdminAttachmentPreview url={msg.attachmentUrl} name={msg.attachmentName} />
+                    )}
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
                     {isAdmin ? "Admin" : "Customer"} · {format(parseISO(msg.createdAt), "MMM d, h:mm a")}
@@ -2604,23 +2649,52 @@ function AdminTicketDetail({ ticketId, onBack }: { ticketId: number; onBack: () 
         </div>
 
         <div className="px-6 py-4 border-t border-border">
-          <form onSubmit={handleReply} className="flex gap-3">
-            <textarea
-              value={reply}
-              onChange={e => setReply(e.target.value)}
-              placeholder="Type your reply…"
-              rows={3}
-              maxLength={5000}
-              className="flex-1 bg-muted/40 border border-border rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all resize-none"
-            />
-            <button
-              type="submit"
-              disabled={sending || !reply.trim()}
-              className="self-end px-4 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center gap-1.5"
-            >
-              {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              Reply
-            </button>
+          <form onSubmit={handleReply} className="space-y-2.5">
+            <div className="flex gap-3">
+              <textarea
+                value={reply}
+                onChange={e => setReply(e.target.value)}
+                placeholder="Type your reply…"
+                rows={3}
+                maxLength={5000}
+                className="flex-1 bg-muted/40 border border-border rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all resize-none"
+              />
+              <button
+                type="submit"
+                disabled={sending || (!reply.trim() && !file)}
+                className="self-end px-4 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                Reply
+              </button>
+            </div>
+
+            {/* File attachment row */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.txt,.doc,.docx,.csv,.zip"
+                onChange={handleFileChange}
+                className="hidden"
+                id="admin-reply-file"
+              />
+              <label htmlFor="admin-reply-file" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground cursor-pointer transition-colors">
+                <Paperclip className="w-3.5 h-3.5" />
+                Attach file
+              </label>
+              {file && (
+                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-muted/50 rounded-lg border border-border text-xs text-foreground">
+                  <FileText className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                  <span className="truncate max-w-[140px]">{file.name}</span>
+                  <button type="button" onClick={() => { setFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }} className="text-muted-foreground hover:text-foreground ml-0.5">
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
+              {fileError && <span className="text-xs text-red-400">{fileError}</span>}
+              <span className="ml-auto text-xs text-muted-foreground">Max 10 MB · Images, PDF, DOC, ZIP</span>
+            </div>
           </form>
         </div>
       </div>
