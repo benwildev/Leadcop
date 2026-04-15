@@ -45,8 +45,6 @@ export default function VerificationModal({ isOpen, onClose, result, email }: Ve
     return "null";
   };
 
-  const scoreColor = result ? (result.reputationScore >= 80 ? "text-green-500" : result.reputationScore >= 50 ? "text-yellow-400" : "text-red-400") : "";
-
   return (
     <AnimatePresence>
       {isOpen && (
@@ -82,10 +80,6 @@ export default function VerificationModal({ isOpen, onClose, result, email }: Ve
                     Disposable
                   </span>
                 )}
-                <div className="px-4 py-1.5 rounded-xl bg-secondary border border-border flex items-center gap-2">
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Score:</span>
-                  <span className={`text-base font-bold ${scoreColor}`}>{result?.reputationScore}/100</span>
-                </div>
                 <button onClick={onClose} className="p-2 rounded-xl border border-border hover:bg-muted transition-colors">
                   <X className="h-5 w-5 text-muted-foreground" />
                 </button>
@@ -111,7 +105,6 @@ export default function VerificationModal({ isOpen, onClose, result, email }: Ve
                 <ResultRow label="status" value={result?.isDisposable ? "disposable" : "clean"} color={result?.isDisposable ? "text-red-400 bg-red-500/10" : "text-green-500 bg-green-500/10"} />
                 <ResultRow label="can_connect_smtp" value={getStatusText(result?.canConnectSmtp)} color={getStatusColor(result?.canConnectSmtp)} />
                 
-                <ResultRow label="overall_score" value={`${result?.reputationScore}/100`} color={scoreColor + " bg-muted/10"} />
                 <ResultRow label="mx_accepts_mail" value={getStatusText(result?.mxAcceptsMail)} color={getStatusColor(result?.mxAcceptsMail)} />
                 
                 <ResultRow label="is_safe_to_send" value={getStatusText(!result?.isDisposable && result?.isDeliverable)} color={getStatusColor(!result?.isDisposable && result?.isDeliverable)} />

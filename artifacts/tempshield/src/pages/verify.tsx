@@ -100,8 +100,6 @@ export default function VerifyPage() {
   const remaining = Math.max(0, limit - used);
   const pct = limit > 0 ? Math.round((used / limit) * 100) : 0;
 
-  const scoreColor = result ? (result.reputationScore >= 80 ? "text-green-500" : result.reputationScore >= 50 ? "text-yellow-400" : "text-red-400") : "";
-
   const StatusBadge = ({ value, label }: { value: boolean | null | undefined; label: string }) => (
     <div className="flex items-center justify-between rounded-lg bg-muted/30 px-4 py-3">
       <span className="text-sm text-muted-foreground">{label}</span>
@@ -272,10 +270,6 @@ export default function VerifyPage() {
                           Disposable
                         </span>
                       )}
-                      <div className="px-4 py-1.5 rounded-xl bg-secondary border border-border flex items-center gap-2">
-                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Score:</span>
-                        <span className={`text-base font-bold ${scoreColor}`}>{result.reputationScore}/100</span>
-                      </div>
                     </div>
                   </div>
                 </div>
