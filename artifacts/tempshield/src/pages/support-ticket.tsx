@@ -61,8 +61,8 @@ export default function SupportTicketPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [ticketQuery.data?.messages]);
 
-  const handleReply = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleReply = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!reply.trim()) return;
     setSending(true);
     setError("");
@@ -192,7 +192,7 @@ export default function SupportTicketPage() {
                   placeholder="Add a reply…"
                   rows={3}
                   maxLength={5000}
-                  onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleReply(e as any); }}
+                  onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); handleReply(); } }}
                   className="flex-1 bg-muted/40 border border-border rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all resize-none"
                 />
                 <button

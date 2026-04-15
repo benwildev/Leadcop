@@ -180,6 +180,14 @@ router.put("/admin/tickets/:id/status", requireAdmin, async (req: any, res: any)
   const result = updateStatusSchema.safeParse(req.body);
   if (!result.success) { res.status(400).json({ error: "Invalid status" }); return; }
 
+  const [existing] = await db
+    .select({ id: supportTicketsTable.id })
+    .from(supportTicketsTable)
+    .where(eq(supportTicketsTable.id, id))
+    .limit(1);
+
+  if (!existing) { res.status(404).json({ error: "Ticket not found" }); return; }
+
   await db.update(supportTicketsTable)
     .set({ status: result.data.status, updatedAt: new Date() })
     .where(eq(supportTicketsTable.id, id));
