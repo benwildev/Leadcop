@@ -12,6 +12,7 @@ import siteSettingsRouter from "./site-settings.js";
 import verifyRouter from "./verify.js";
 import bulkJobsRouter from "./bulk-jobs.js";
 import accountRouter from "./account.js";
+import supportRouter from "./support.js";
 
 const router: IRouter = Router();
 
@@ -28,5 +29,6 @@ router.use(siteSettingsRouter);
 router.use(verifyRouter);
 router.use(bulkJobsRouter);
 router.use(accountRouter);
+router.use("/support", supportRouter);
 
 export default router;

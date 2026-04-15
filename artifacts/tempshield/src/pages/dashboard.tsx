@@ -21,7 +21,7 @@ import {
   BarChart3, Clock, Globe, FileText, Plus, Trash2, Loader2, X,
   Webhook, ShieldBan, Eye, EyeOff, Shield, AlertTriangle, ChevronDown,
   TrendingUp, ListFilter, ChevronLeft, ChevronRight, CreditCard, Download, Zap, Code,
-  Layers, Upload, RotateCcw, CheckCircle, XCircle, Minus,
+  Layers, Upload, RotateCcw, CheckCircle, XCircle, Minus, MessageSquare,
 } from "lucide-react";
 import ReputationBadge from "@/components/ReputationBadge";
 import { motion, AnimatePresence } from "framer-motion";
@@ -123,6 +123,10 @@ export default function DashboardPage() {
                 {label}
               </button>
             ))}
+            <Link href="/support" className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all text-muted-foreground hover:text-foreground">
+              <MessageSquare className="h-4 w-4" />
+              Support
+            </Link>
           </div>
 
           {isLoading ? (

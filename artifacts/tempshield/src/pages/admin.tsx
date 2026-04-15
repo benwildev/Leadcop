@@ -18,6 +18,7 @@ import {
   Search, ChevronLeft, ChevronRight, LogOut, ArrowLeft,
   PieChart, BarChart3, Globe, FileText, Zap, Lock, Plus, Mail, Send,
   Upload, Download, Paperclip, TrendingUp, DollarSign, Image, Tag,
+  MessageSquare, AlertCircle, Clock, CheckCircle, XCircle,
 } from "lucide-react";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import {
@@ -26,7 +27,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { format, parseISO } from "date-fns";
 
-type Section = "overview" | "users" | "subscriptions" | "plan-config" | "api-keys" | "domains" | "payment" | "email" | "revenue" | "branding" | "seo";
+type Section = "overview" | "users" | "subscriptions" | "plan-config" | "api-keys" | "domains" | "payment" | "email" | "revenue" | "branding" | "seo" | "support";
 
 const NAV_ITEMS: { id: Section; label: string; icon: React.ElementType }[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
@@ -40,6 +41,7 @@ const NAV_ITEMS: { id: Section; label: string; icon: React.ElementType }[] = [
   { id: "email", label: "Email", icon: Mail },
   { id: "branding", label: "Branding", icon: Image },
   { id: "seo", label: "SEO", icon: Tag },
+  { id: "support", label: "Support", icon: MessageSquare },
 ];
 
 const PLAN_COLORS: Record<string, string> = {
@@ -2307,6 +2309,287 @@ function SeoSection() {
   );
 }
 
+type AdminTicket = {
+  id: number;
+  subject: string;
+  category: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  userId: number;
+  userName: string | null;
+  userEmail: string | null;
+};
+
+type SupportMessage = {
+  id: number;
+  ticketId: number;
+  senderRole: string;
+  message: string;
+  createdAt: string;
+};
+
+const TICKET_STATUS_CONFIG: Record<string, { label: string; icon: React.ElementType; cls: string }> = {
+  open: { label: "Open", icon: AlertCircle, cls: "bg-blue-500/15 text-blue-400" },
+  in_progress: { label: "In Progress", icon: Clock, cls: "bg-yellow-500/15 text-yellow-400" },
+  resolved: { label: "Resolved", icon: CheckCircle, cls: "bg-green-500/15 text-green-400" },
+  closed: { label: "Closed", icon: XCircle, cls: "bg-muted/60 text-muted-foreground" },
+};
+
+const CATEGORY_LABELS: Record<string, string> = {
+  general: "General",
+  billing: "Billing",
+  technical: "Technical",
+  feature: "Feature Request",
+};
+
+function AdminTicketDetail({ ticketId, onBack }: { ticketId: number; onBack: () => void }) {
+  const qc = useQueryClient();
+  const [reply, setReply] = useState("");
+  const [sending, setSending] = useState(false);
+  const [newStatus, setNewStatus] = useState<string>("");
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+
+  const detailQuery = useQuery<{ ticket: AdminTicket; messages: SupportMessage[] }>({
+    queryKey: [`/api/support/admin/tickets/${ticketId}`],
+    queryFn: () => fetch(`/api/support/admin/tickets/${ticketId}`, { credentials: "include" }).then(r => r.json()),
+  });
+
+  const ticket = detailQuery.data?.ticket;
+  const messages = detailQuery.data?.messages ?? [];
+
+  useEffect(() => {
+    if (ticket) setNewStatus(ticket.status);
+  }, [ticket]);
+
+  const handleStatusUpdate = async () => {
+    if (!newStatus || newStatus === ticket?.status) return;
+    setUpdatingStatus(true);
+    try {
+      await fetch(`/api/support/admin/tickets/${ticketId}/status`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ status: newStatus }),
+      });
+      qc.invalidateQueries({ queryKey: [`/api/support/admin/tickets/${ticketId}`] });
+      qc.invalidateQueries({ queryKey: ["/api/support/admin/tickets"] });
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
+  const handleReply = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reply.trim()) return;
+    setSending(true);
+    try {
+      await fetch(`/api/support/admin/tickets/${ticketId}/reply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ message: reply.trim() }),
+      });
+      setReply("");
+      qc.invalidateQueries({ queryKey: [`/api/support/admin/tickets/${ticketId}`] });
+      qc.invalidateQueries({ queryKey: ["/api/support/admin/tickets"] });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  if (detailQuery.isLoading) {
+    return <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>;
+  }
+
+  if (!ticket) return null;
+
+  const statusCfg = TICKET_STATUS_CONFIG[ticket.status] ?? TICKET_STATUS_CONFIG.open;
+  const StatusIcon = statusCfg.icon;
+
+  return (
+    <div>
+      <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-5">
+        <ArrowLeft className="w-4 h-4" /> Back to Tickets
+      </button>
+
+      <div className="glass-card rounded-2xl overflow-hidden">
+        <div className="px-6 py-5 border-b border-border flex items-start justify-between gap-4">
+          <div>
+            <h3 className="font-heading text-lg font-bold text-foreground">{ticket.subject}</h3>
+            <p className="text-xs text-muted-foreground mt-1">
+              {CATEGORY_LABELS[ticket.category] ?? ticket.category} ·{" "}
+              {ticket.userName ?? "Unknown"} ({ticket.userEmail}) ·{" "}
+              Opened {format(parseISO(ticket.createdAt), "MMM d, yyyy")}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <select
+              value={newStatus}
+              onChange={e => setNewStatus(e.target.value)}
+              className="text-xs rounded-lg px-2 py-1.5 bg-muted/40 border border-border text-foreground focus:outline-none"
+            >
+              <option value="open">Open</option>
+              <option value="in_progress">In Progress</option>
+              <option value="resolved">Resolved</option>
+              <option value="closed">Closed</option>
+            </select>
+            <button
+              onClick={handleStatusUpdate}
+              disabled={updatingStatus || newStatus === ticket.status}
+              className="px-3 py-1.5 bg-primary/15 text-primary hover:bg-primary/25 rounded-lg text-xs font-semibold transition-colors disabled:opacity-40"
+            >
+              {updatingStatus ? <Loader2 className="w-3 h-3 animate-spin" /> : "Update"}
+            </button>
+          </div>
+        </div>
+
+        <div className="px-6 py-4 space-y-4 min-h-[250px] max-h-[400px] overflow-y-auto">
+          {messages.map((msg, i) => {
+            const isAdmin = msg.senderRole === "admin";
+            return (
+              <div key={msg.id} className={`flex gap-3 ${isAdmin ? "flex-row-reverse" : ""}`}>
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${
+                  isAdmin ? "bg-primary/15 text-primary" : "bg-muted/60 text-muted-foreground"
+                }`}>
+                  {isAdmin ? "A" : "U"}
+                </div>
+                <div className={`flex-1 max-w-[85%] ${isAdmin ? "text-right" : ""}`}>
+                  <div className={`inline-block px-4 py-3 rounded-2xl text-sm text-foreground ${
+                    isAdmin ? "bg-primary/15 rounded-tr-sm" : "bg-muted/40 rounded-tl-sm"
+                  }`}>
+                    <p className="whitespace-pre-wrap">{msg.message}</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {isAdmin ? "Admin" : "Customer"} · {format(parseISO(msg.createdAt), "MMM d, h:mm a")}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="px-6 py-4 border-t border-border">
+          <form onSubmit={handleReply} className="flex gap-3">
+            <textarea
+              value={reply}
+              onChange={e => setReply(e.target.value)}
+              placeholder="Type your reply…"
+              rows={3}
+              maxLength={5000}
+              className="flex-1 bg-muted/40 border border-border rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all resize-none"
+            />
+            <button
+              type="submit"
+              disabled={sending || !reply.trim()}
+              className="self-end px-4 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center gap-1.5"
+            >
+              {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              Reply
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SupportSection() {
+  const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+
+  const ticketsQuery = useQuery<{ tickets: AdminTicket[] }>({
+    queryKey: ["/api/support/admin/tickets"],
+    queryFn: () => fetch("/api/support/admin/tickets", { credentials: "include" }).then(r => r.json()),
+  });
+
+  const tickets = (ticketsQuery.data?.tickets ?? []).filter(t =>
+    statusFilter === "all" ? true : t.status === statusFilter
+  );
+
+  if (selectedTicketId !== null) {
+    return <AdminTicketDetail ticketId={selectedTicketId} onBack={() => setSelectedTicketId(null)} />;
+  }
+
+  return (
+    <div>
+      <SectionHeader title="Support" subtitle="Manage customer support tickets" />
+
+      <div className="flex gap-2 mb-5 flex-wrap">
+        {["all", "open", "in_progress", "resolved", "closed"].map(f => (
+          <button
+            key={f}
+            onClick={() => setStatusFilter(f)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              statusFilter === f ? "bg-primary/15 text-primary" : "bg-muted/40 text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {f === "all" ? "All" : (TICKET_STATUS_CONFIG[f]?.label ?? f)}
+          </button>
+        ))}
+      </div>
+
+      <div className="glass-card rounded-xl overflow-hidden">
+        {ticketsQuery.isLoading ? (
+          <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+        ) : tickets.length === 0 ? (
+          <div className="text-center py-14 text-muted-foreground text-sm">
+            <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-40" />
+            No tickets found.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="border-b border-border">
+                <tr>
+                  {["Subject", "Customer", "Category", "Status", "Updated", ""].map(h => (
+                    <th key={h} className="px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {tickets.map(t => {
+                  const cfg = TICKET_STATUS_CONFIG[t.status] ?? TICKET_STATUS_CONFIG.open;
+                  const Icon = cfg.icon;
+                  return (
+                    <tr key={t.id} className="border-b border-border/50 last:border-0 hover:bg-muted/20 transition-colors">
+                      <td className="px-4 py-3 font-medium text-foreground max-w-xs truncate">{t.subject}</td>
+                      <td className="px-4 py-3">
+                        <div className="text-xs text-foreground">{t.userName ?? "—"}</div>
+                        <div className="text-xs text-muted-foreground">{t.userEmail}</div>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground capitalize">
+                        {CATEGORY_LABELS[t.category] ?? t.category}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${cfg.cls}`}>
+                          <Icon className="w-3 h-3" />
+                          {cfg.label}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground">
+                        {format(parseISO(t.updatedAt), "MMM d, yyyy")}
+                      </td>
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() => setSelectedTicketId(t.id)}
+                          className="px-3 py-1 text-xs font-medium bg-muted/40 hover:bg-muted/70 text-foreground rounded-lg transition-colors"
+                        >
+                          View
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const { user } = useAuth();
   const [section, setSection] = useState<Section>("overview");
@@ -2326,6 +2609,7 @@ export default function AdminPage() {
     email: <EmailSection />,
     branding: <BrandingSection />,
     seo: <SeoSection />,
+    support: <SupportSection />,
   };
 
   return (

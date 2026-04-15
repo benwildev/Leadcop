@@ -14,6 +14,9 @@ import DocsPage from "./pages/docs";
 import UpgradePage from "./pages/upgrade";
 import AdminPage from "./pages/admin";
 import VerifyPage from "./pages/verify";
+import SupportPage from "./pages/support";
+import SupportNewPage from "./pages/support-new";
+import SupportTicketPage from "./pages/support-ticket";
 
 const queryClient = new QueryClient();
 
@@ -63,6 +66,15 @@ function Router() {
       </Route>
       <Route path="/admin">
         {() => <ProtectedRoute component={AdminPage} adminOnly={true} />}
+      </Route>
+      <Route path="/support">
+        {() => <ProtectedRoute component={SupportPage} />}
+      </Route>
+      <Route path="/support/new">
+        {() => <ProtectedRoute component={SupportNewPage} />}
+      </Route>
+      <Route path="/support/ticket/:id">
+        {() => <ProtectedRoute component={SupportTicketPage} />}
       </Route>
       
       <Route component={NotFound} />
