@@ -134,6 +134,49 @@ export async function sendUpgradeDecisionNotification(opts: {
   }).catch((err) => logger.error({ err }, "Failed to send upgrade decision email"));
 }
 
+export async function sendPasswordResetEmail(opts: {
+  userEmail: string;
+  userName: string;
+  resetUrl: string;
+}) {
+  const settings = await getEmailSettings();
+  if (!settings?.smtpHost || !settings.smtpUser || !settings.smtpPass || !settings.fromEmail) {
+    throw new Error("SMTP is not configured");
+  }
+
+  const transport = createTransport({
+    smtpHost: settings.smtpHost,
+    smtpPort: settings.smtpPort,
+    smtpUser: settings.smtpUser,
+    smtpPass: settings.smtpPass,
+    smtpSecure: settings.smtpSecure,
+  });
+
+  await transport.sendMail({
+    from: `"${settings.fromName}" <${settings.fromEmail}>`,
+    to: opts.userEmail,
+    subject: "Reset your password",
+    html: `
+      <div style="font-family:sans-serif;max-width:560px;margin:0 auto">
+        <h2 style="color:#8b5cf6">Reset your password</h2>
+        <p>Hi ${opts.userName},</p>
+        <p>We received a request to reset the password for your account. Click the button below to choose a new password. This link expires in <strong>1 hour</strong>.</p>
+        <p style="margin:24px 0">
+          <a href="${opts.resetUrl}" style="background:#8b5cf6;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block">
+            Reset password
+          </a>
+        </p>
+        <p>Or copy this link into your browser:</p>
+        <p style="word-break:break-all;color:#8b5cf6;font-size:13px">${opts.resetUrl}</p>
+        <p style="color:#888;font-size:13px;margin-top:24px">If you did not request a password reset, you can safely ignore this email — your password will not change.</p>
+      </div>
+    `,
+  }).catch((err) => {
+    logger.error({ err }, "Failed to send password reset email");
+    throw err;
+  });
+}
+
 export async function sendTestEmail(to: string) {
   const settings = await getEmailSettings();
   if (!settings?.smtpHost || !settings.smtpUser || !settings.smtpPass || !settings.fromEmail) {

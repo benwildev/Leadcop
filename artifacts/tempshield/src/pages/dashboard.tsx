@@ -174,6 +174,143 @@ export default function DashboardPage() {
   );
 }
 
+// ─── Getting Started Checklist ─────────────────────────────────────────────────
+
+const ONBOARDING_KEY = "ts_onboarding_done";
+
+function GettingStartedChecklist({ apiKey, userId }: { apiKey: string; userId: number }) {
+  const storageKey = `${ONBOARDING_KEY}_${userId}`;
+  const initial = (() => {
+    try { return JSON.parse(localStorage.getItem(storageKey) || "{}"); } catch { return {}; }
+  })();
+
+  const [steps, setSteps] = useState<Record<string, boolean>>({
+    key: initial.key ?? false,
+    script: initial.script ?? false,
+    test: initial.test ?? false,
+  });
+  const [keyCopied, setKeyCopied] = useState(false);
+
+  const mark = (id: string) => {
+    setSteps((prev) => {
+      const next = { ...prev, [id]: true };
+      try { localStorage.setItem(storageKey, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
+
+  const allDone = steps.key && steps.script && steps.test;
+  if (allDone) return null;
+
+  const handleCopyKey = () => {
+    navigator.clipboard.writeText(apiKey);
+    setKeyCopied(true);
+    mark("key");
+    setTimeout(() => setKeyCopied(false), 2000);
+  };
+
+  const checkItems = [
+    {
+      id: "key",
+      label: "Copy your API key",
+      sublabel: "You'll need this to authenticate your requests.",
+      action: (
+        <button
+          onClick={handleCopyKey}
+          className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg text-xs font-semibold transition-colors"
+        >
+          {keyCopied ? <CheckCircle className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+          {keyCopied ? "Copied!" : "Copy key"}
+        </button>
+      ),
+    },
+    {
+      id: "script",
+      label: "Add the script to your site",
+      sublabel: "Drop one line of HTML to start blocking disposable emails.",
+      action: (
+        <Link
+          href="/docs"
+          onClick={() => mark("script")}
+          className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg text-xs font-semibold transition-colors"
+        >
+          <Code className="w-3.5 h-3.5" /> View docs
+        </Link>
+      ),
+    },
+    {
+      id: "test",
+      label: "Test with a real email",
+      sublabel: "Use Quick Verify below to confirm everything is working.",
+      action: (
+        <button
+          onClick={() => mark("test")}
+          className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg text-xs font-semibold transition-colors"
+        >
+          <Zap className="w-3.5 h-3.5" /> Mark done
+        </button>
+      ),
+    },
+  ];
+
+  const doneCount = Object.values(steps).filter(Boolean).length;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="glass-card rounded-2xl p-6 lg:col-span-3"
+    >
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
+            <CheckCircle2 className="w-4 h-4 text-primary" />
+          </div>
+          <div>
+            <h2 className="font-heading text-base font-semibold text-foreground">Getting Started</h2>
+            <p className="text-xs text-muted-foreground">{doneCount} of 3 steps complete</p>
+          </div>
+        </div>
+        {/* Progress dots */}
+        <div className="flex gap-1.5">
+          {checkItems.map((item) => (
+            <div
+              key={item.id}
+              className={`w-2 h-2 rounded-full transition-colors ${steps[item.id] ? "bg-green-500" : "bg-border"}`}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        {checkItems.map((item, i) => (
+          <div
+            key={item.id}
+            className={`flex items-center gap-4 p-3 rounded-xl border transition-colors ${
+              steps[item.id]
+                ? "border-green-200 bg-green-50/50"
+                : "border-border bg-muted/20"
+            }`}
+          >
+            <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-xs font-bold transition-colors ${
+              steps[item.id] ? "bg-green-500 text-white" : "bg-muted text-muted-foreground border border-border"
+            }`}>
+              {steps[item.id] ? <CheckCircle className="w-3.5 h-3.5" /> : i + 1}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className={`text-sm font-medium leading-tight ${steps[item.id] ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                {item.label}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">{item.sublabel}</p>
+            </div>
+            {!steps[item.id] && item.action}
+          </div>
+        ))}
+      </div>
+    </motion.div>
+  );
+}
+
 // ─── Overview Tab ─────────────────────────────────────────────────────────────
 
 function OverviewTab({
@@ -219,6 +356,8 @@ function OverviewTab({
         result={verifyResult}
         email={verifyEmail}
       />
+      {/* Getting Started Checklist */}
+      <GettingStartedChecklist apiKey={data.user.apiKey} userId={data.user.id} />
       {/* API Key Card */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-2xl p-6 lg:col-span-2">
         <div className="flex items-center gap-2 mb-4">

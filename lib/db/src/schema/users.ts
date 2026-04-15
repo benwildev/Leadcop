@@ -17,6 +17,8 @@ export const usersTable = pgTable("users", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   usagePeriodStart: timestamp("usage_period_start").notNull().defaultNow(),
   blockFreeEmails: boolean("block_free_emails").notNull().default(false),
+  resetToken: text("reset_token"),
+  resetTokenExpiresAt: timestamp("reset_token_expires_at"),
 });
 
 export const insertUserSchema = createInsertSchema(usersTable).omit({ id: true, createdAt: true });

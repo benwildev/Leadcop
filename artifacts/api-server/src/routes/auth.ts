@@ -2,8 +2,10 @@ import { Router } from "express";
 import { db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
+import crypto from "crypto";
 import { hashPassword, verifyPassword, generateApiKey, getPlanConfig } from "../lib/auth.js";
 import { createSession, destroySession, requireAuth, SESSION_COOKIE } from "../middlewares/session.js";
+import { sendPasswordResetEmail } from "../lib/email.js";
 
 const router = Router();
 
@@ -130,6 +132,76 @@ router.post("/login", async (req, res) => {
     },
     message: "Login successful",
   });
+});
+
+router.post("/forgot-password", async (req, res) => {
+  const parsed = z.object({ email: z.string().email() }).safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid email address" });
+    return;
+  }
+
+  const { email } = parsed.data;
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
+
+  // Always respond with success to prevent email enumeration
+  if (!user) {
+    res.json({ message: "If that email is registered, a reset link has been sent." });
+    return;
+  }
+
+  const token = crypto.randomBytes(32).toString("hex");
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+  await db
+    .update(usersTable)
+    .set({ resetToken: token, resetTokenExpiresAt: expiresAt })
+    .where(eq(usersTable.id, user.id));
+
+  const origin = req.headers.origin || `https://leadcop.io`;
+  const resetUrl = `${origin}/reset-password?token=${token}`;
+
+  try {
+    await sendPasswordResetEmail({ userEmail: user.email, userName: user.name, resetUrl });
+  } catch {
+    // Log already handled in sendPasswordResetEmail; still return success to user
+  }
+
+  res.json({ message: "If that email is registered, a reset link has been sent." });
+});
+
+router.post("/reset-password", async (req, res) => {
+  const parsed = z.object({
+    token: z.string().min(1),
+    password: z.string().min(6),
+  }).safeParse(req.body);
+
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.errors[0]?.message || "Invalid input" });
+    return;
+  }
+
+  const { token, password } = parsed.data;
+
+  const [user] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.resetToken, token))
+    .limit(1);
+
+  if (!user || !user.resetTokenExpiresAt || user.resetTokenExpiresAt < new Date()) {
+    res.status(400).json({ error: "This reset link is invalid or has expired. Please request a new one." });
+    return;
+  }
+
+  const hashedPassword = await hashPassword(password);
+
+  await db
+    .update(usersTable)
+    .set({ password: hashedPassword, resetToken: null, resetTokenExpiresAt: null })
+    .where(eq(usersTable.id, user.id));
+
+  res.json({ message: "Password updated successfully. You can now log in." });
 });
 
 router.post("/logout", (req, res) => {
