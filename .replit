@@ -1,3 +1,4 @@
+modules = ["postgresql-16"]
 [[ports]]
 localPort = 5173
 externalPort = 80
@@ -29,3 +30,6 @@ outputType = "webview"
 task = "shell.exec"
 args = "/home/runner/workspace/start-dev.sh"
 waitForPort = 5173
+
+[nix]
+channel = "stable-25_05"
