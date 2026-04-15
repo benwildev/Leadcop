@@ -600,8 +600,8 @@ function LiveDemo({
 }) {
   const apiUrl =
     typeof window !== "undefined"
-      ? `${window.location.origin}/api/check-email`
-      : "https://yourdomain.com/api/check-email";
+      ? `${window.location.origin}/api/check-email/demo`
+      : "https://yourdomain.com/api/check-email/demo";
   return <EmailCheckForm email={email} onEmailChange={onEmailChange} apiUrl={apiUrl} />;
 }
 
