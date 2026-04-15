@@ -104,27 +104,22 @@ export default function VerificationModal({ isOpen, onClose, result, email }: Ve
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-2 text-sm">
                 <ResultRow label="status" value={result?.isDisposable ? "disposable" : "clean"} color={result?.isDisposable ? "text-red-400 bg-red-500/10" : "text-green-500 bg-green-500/10"} />
                 <ResultRow label="can_connect_smtp" value={getStatusText(result?.canConnectSmtp)} color={getStatusColor(result?.canConnectSmtp)} />
-                
+
                 <ResultRow label="mx_accepts_mail" value={getStatusText(result?.mxAcceptsMail)} color={getStatusColor(result?.mxAcceptsMail)} />
-                
                 <ResultRow label="is_safe_to_send" value={getStatusText(!result?.isDisposable && result?.isDeliverable)} color={getStatusColor(!result?.isDisposable && result?.isDeliverable)} />
+
                 <ResultRow label="mx_records" value={result?.mxRecords[0] || "none"} isMono />
-                
                 <ResultRow label="is_valid_syntax" value={getStatusText(result?.isValidSyntax)} color={getStatusColor(result?.isValidSyntax)} />
-                <ResultRow label="is_disabled" value={getStatusText(result?.isDisabled)} color={getStatusColor(result?.isDisabled)} />
-                
-                <ResultRow label="is_role_account" value={getStatusText(result?.isRoleAccount)} color={getStatusColor(result?.isRoleAccount)} />
+
+                <ResultRow label="is_disabled" value={getStatusText(result?.isDisabled)} color={getStatusColor(!result?.isDisabled)} />
+                <ResultRow label="is_role_account" value={getStatusText(result?.isRoleAccount)} color={getStatusColor(!result?.isRoleAccount)} />
+
                 <ResultRow label="is_deliverable" value={getStatusText(result?.isDeliverable)} color={getStatusColor(result?.isDeliverable)} />
-                
-                <ResultRow label="is_catch_all" value={getStatusText(result?.isCatchAll)} color={getStatusColor(result?.isCatchAll)} />
-                <div className="hidden md:block" /> {/* spacer */}
-                
+                <ResultRow label="is_catch_all" value={getStatusText(result?.isCatchAll)} color={getStatusColor(result?.isCatchAll === null ? null : !result?.isCatchAll)} />
+
                 <ResultRow label="is_disposable" value={getStatusText(result?.isDisposable)} color={getStatusColor(!result?.isDisposable)} />
-                <div className="hidden md:block" /> {/* spacer */}
-                
                 <ResultRow label="is_free_email" value={getStatusText(result?.isFreeEmail)} color={getStatusColor(!result?.isFreeEmail)} />
-                <div className="hidden md:block" /> {/* spacer */}
-                
+
                 <ResultRow label="has_inbox_full" value={getStatusText(result?.hasInboxFull)} color={getStatusColor(!result?.hasInboxFull)} />
               </div>
             </div>
