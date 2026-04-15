@@ -42,7 +42,7 @@ export default function VerificationModal({ isOpen, onClose, result, email }: Ve
   const getStatusText = (val: boolean | null | undefined) => {
     if (val === true) return "true";
     if (val === false) return "false";
-    return "null";
+    return "unknown";
   };
 
   return (
