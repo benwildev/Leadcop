@@ -241,14 +241,15 @@ function GettingStartedChecklist({ apiKey, userId }: { apiKey: string; userId: n
     {
       id: "test",
       label: "Test with a real email",
-      sublabel: "Use Quick Verify below to confirm everything is working.",
+      sublabel: "Verify any email address to confirm your integration is working.",
       action: (
-        <button
+        <Link
+          href="/verify"
           onClick={() => mark("test")}
           className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg text-xs font-semibold transition-colors"
         >
-          <Zap className="w-3.5 h-3.5" /> Mark done
-        </button>
+          <Zap className="w-3.5 h-3.5" /> Verify email
+        </Link>
       ),
     },
   ];

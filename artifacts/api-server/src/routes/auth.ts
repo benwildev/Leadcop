@@ -158,8 +158,9 @@ router.post("/forgot-password", async (req, res) => {
     .set({ resetToken: token, resetTokenExpiresAt: expiresAt })
     .where(eq(usersTable.id, user.id));
 
-  const origin = req.headers.origin || `https://leadcop.io`;
-  const resetUrl = `${origin}/reset-password?token=${token}`;
+  // Build reset URL from a server-controlled base — never from attacker-controlled headers
+  const appBaseUrl = (process.env.APP_URL || process.env.SITE_URL || "https://leadcop.io").replace(/\/$/, "");
+  const resetUrl = `${appBaseUrl}/reset-password?token=${token}`;
 
   try {
     await sendPasswordResetEmail({ userEmail: user.email, userName: user.name, resetUrl });
