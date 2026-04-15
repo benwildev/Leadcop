@@ -80,6 +80,8 @@
     "zod": "catalog:"
   },
   "dependencies": {
-    "@paypal/react-paypal-js": "^9.1.0"
+    "@paypal/react-paypal-js": "^9.1.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
   }
 }

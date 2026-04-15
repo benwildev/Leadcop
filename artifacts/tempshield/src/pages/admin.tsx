@@ -2822,9 +2822,11 @@ interface BlogPost {
   content: string;
   author: string;
   coverImage: string | null;
+  tags: string[];
   status: "DRAFT" | "PUBLISHED";
-  metaTitle: string | null;
-  metaDescription: string | null;
+  seoTitle: string | null;
+  seoDescription: string | null;
+  ogImage: string | null;
   publishedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -2837,9 +2839,11 @@ const EMPTY_POST = {
   content: "",
   author: "LeadCop Team",
   coverImage: "",
+  tags: "",
   status: "DRAFT" as const,
-  metaTitle: "",
-  metaDescription: "",
+  seoTitle: "",
+  seoDescription: "",
+  ogImage: "",
 };
 
 function slugify(text: string): string {
@@ -2853,6 +2857,7 @@ function BlogAdminSection() {
   const [form, setForm] = useState(EMPTY_POST);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<number | null>(null);
+  const [publishing, setPublishing] = useState<number | null>(null);
 
   const postsQuery = useQuery<{ posts: BlogPost[] }>({
     queryKey: ["/api/admin/blog/posts"],
@@ -2879,9 +2884,11 @@ function BlogAdminSection() {
       content: post.content,
       author: post.author,
       coverImage: post.coverImage ?? "",
+      tags: Array.isArray(post.tags) ? post.tags.join(", ") : "",
       status: post.status,
-      metaTitle: post.metaTitle ?? "",
-      metaDescription: post.metaDescription ?? "",
+      seoTitle: post.seoTitle ?? "",
+      seoDescription: post.seoDescription ?? "",
+      ogImage: post.ogImage ?? "",
     });
     setEditing(post);
     setCreating(false);
@@ -2926,6 +2933,17 @@ function BlogAdminSection() {
       qc.invalidateQueries({ queryKey: ["/api/admin/blog/posts"] });
     } finally {
       setDeleting(null);
+    }
+  };
+
+  const handlePublishToggle = async (id: number) => {
+    setPublishing(id);
+    try {
+      const res = await fetch(`/api/admin/blog/posts/${id}/publish`, { method: "POST", credentials: "include" });
+      if (!res.ok) { const d = await res.json(); alert(d.error || "Failed"); return; }
+      qc.invalidateQueries({ queryKey: ["/api/admin/blog/posts"] });
+    } finally {
+      setPublishing(null);
     }
   };
 
@@ -3004,6 +3022,15 @@ function BlogAdminSection() {
                 className="w-full px-3 py-2 rounded-lg bg-muted/40 border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
               />
             </div>
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Tags</label>
+              <input
+                value={form.tags}
+                onChange={e => setForm(f => ({ ...f, tags: e.target.value }))}
+                placeholder="email marketing, lead generation, guides (comma-separated)"
+                className="w-full px-3 py-2 rounded-lg bg-muted/40 border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+              />
+            </div>
             <div className="md:col-span-2">
               <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Excerpt</label>
               <textarea
@@ -3015,30 +3042,39 @@ function BlogAdminSection() {
               />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Content (HTML)</label>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Content (Markdown)</label>
               <textarea
                 value={form.content}
                 onChange={e => setForm(f => ({ ...f, content: e.target.value }))}
-                placeholder="<p>Your article content in HTML…</p>"
-                rows={10}
+                placeholder="## Your article content in Markdown..."
+                rows={12}
                 className="w-full px-3 py-2 rounded-lg bg-muted/40 border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 font-mono resize-y"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Meta Title</label>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">SEO Title</label>
               <input
-                value={form.metaTitle}
-                onChange={e => setForm(f => ({ ...f, metaTitle: e.target.value }))}
-                placeholder="SEO title (optional)"
+                value={form.seoTitle}
+                onChange={e => setForm(f => ({ ...f, seoTitle: e.target.value }))}
+                placeholder="SEO title override (optional)"
                 className="w-full px-3 py-2 rounded-lg bg-muted/40 border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Meta Description</label>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">SEO Description</label>
               <input
-                value={form.metaDescription}
-                onChange={e => setForm(f => ({ ...f, metaDescription: e.target.value }))}
-                placeholder="SEO description (optional)"
+                value={form.seoDescription}
+                onChange={e => setForm(f => ({ ...f, seoDescription: e.target.value }))}
+                placeholder="SEO meta description (optional)"
+                className="w-full px-3 py-2 rounded-lg bg-muted/40 border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">OG Image URL</label>
+              <input
+                value={form.ogImage}
+                onChange={e => setForm(f => ({ ...f, ogImage: e.target.value }))}
+                placeholder="https://example.com/og-image.jpg (optional)"
                 className="w-full px-3 py-2 rounded-lg bg-muted/40 border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
               />
             </div>
@@ -3092,6 +3128,11 @@ function BlogAdminSection() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
+                      <button onClick={() => handlePublishToggle(post.id)} disabled={publishing === post.id}
+                        title={post.status === "PUBLISHED" ? "Unpublish" : "Publish"}
+                        className={`p-1.5 rounded-lg transition-colors ${post.status === "PUBLISHED" ? "text-green-400 hover:text-muted-foreground hover:bg-muted" : "text-muted-foreground hover:text-green-400 hover:bg-green-500/10"}`}>
+                        {publishing === post.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
+                      </button>
                       <button onClick={() => openEdit(post)} title="Edit"
                         className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
                         <FileText className="w-3.5 h-3.5" />
