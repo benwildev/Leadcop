@@ -1,7 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { useLocation } from "wouter";
 import { Navbar } from "@/components/Layout";
-import { ArrowLeft, Send, Loader2 } from "lucide-react";
+import { ArrowLeft, Send, Loader2, Paperclip, X, FileText, Image as ImageIcon } from "lucide-react";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
 
@@ -12,13 +12,32 @@ const CATEGORIES = [
   { value: "feature", label: "Feature Request" },
 ];
 
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
+const ALLOWED_TYPES = /\.(jpg|jpeg|png|gif|webp|pdf|txt|doc|docx|csv|zip)$/i;
+
+function isImageFile(name: string) {
+  return /\.(jpg|jpeg|png|gif|webp)$/i.test(name);
+}
+
 export default function SupportNewPage() {
   const [, navigate] = useLocation();
   const [subject, setSubject] = useState("");
   const [category, setCategory] = useState("general");
   const [message, setMessage] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [fileError, setFileError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    setFileError("");
+    if (!f) { setFile(null); return; }
+    if (f.size > MAX_FILE_SIZE) { setFileError("File must be under 10 MB"); return; }
+    if (!ALLOWED_TYPES.test(f.name)) { setFileError("File type not allowed"); return; }
+    setFile(f);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,11 +46,16 @@ export default function SupportNewPage() {
     setError("");
 
     try {
+      const fd = new FormData();
+      fd.append("subject", subject.trim());
+      fd.append("category", category);
+      fd.append("message", message.trim());
+      if (file) fd.append("attachment", file);
+
       const resp = await fetch("/api/support/tickets", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ subject: subject.trim(), category, message: message.trim() }),
+        body: fd,
       });
 
       if (!resp.ok) {
@@ -102,6 +126,43 @@ export default function SupportNewPage() {
                 className="w-full bg-muted/40 border border-border rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all resize-none"
               />
               <p className="text-xs text-muted-foreground mt-1 text-right">{message.length}/5000</p>
+            </div>
+
+            {/* File attachment */}
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Attachment (optional)</label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.txt,.doc,.docx,.csv,.zip"
+                onChange={handleFileChange}
+                className="hidden"
+                id="ticket-file"
+              />
+              {file ? (
+                <div className="flex items-center gap-2 px-3 py-2.5 bg-muted/40 border border-border rounded-xl">
+                  {isImageFile(file.name) ? <ImageIcon className="w-4 h-4 text-primary flex-shrink-0" /> : <FileText className="w-4 h-4 text-primary flex-shrink-0" />}
+                  <span className="text-sm text-foreground truncate flex-1">{file.name}</span>
+                  <span className="text-xs text-muted-foreground flex-shrink-0">{(file.size / 1024).toFixed(0)} KB</span>
+                  <button
+                    type="button"
+                    onClick={() => { setFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                    className="text-muted-foreground hover:text-foreground flex-shrink-0"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <label
+                  htmlFor="ticket-file"
+                  className="flex items-center justify-center gap-2 w-full px-3 py-3 bg-muted/40 border border-dashed border-border rounded-xl text-sm text-muted-foreground hover:text-foreground hover:border-primary/40 cursor-pointer transition-all"
+                >
+                  <Paperclip className="w-4 h-4" />
+                  Click to attach a file
+                </label>
+              )}
+              {fileError && <p className="text-xs text-red-400 mt-1">{fileError}</p>}
+              <p className="text-xs text-muted-foreground mt-1">Max 10 MB · Supported: Images, PDF, DOC, TXT, CSV, ZIP</p>
             </div>
 
             {error && (

@@ -28,6 +28,8 @@ export const supportMessagesTable = pgTable("support_messages", {
   ticketId: integer("ticket_id").notNull().references(() => supportTicketsTable.id),
   senderRole: supportMessageSenderRoleEnum("sender_role").notNull(),
   message: text("message").notNull(),
+  attachmentUrl: text("attachment_url"),
+  attachmentName: text("attachment_name"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
