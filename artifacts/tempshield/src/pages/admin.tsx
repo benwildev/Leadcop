@@ -2840,7 +2840,7 @@ const EMPTY_POST = {
   author: "LeadCop Team",
   coverImage: "",
   tags: "",
-  status: "DRAFT" as const,
+  status: "DRAFT" as "DRAFT" | "PUBLISHED",
   seoTitle: "",
   seoDescription: "",
   ogImage: "",
@@ -2902,8 +2902,9 @@ function BlogAdminSection() {
       const body = {
         ...form,
         coverImage: form.coverImage || null,
-        metaTitle: form.metaTitle || null,
-        metaDescription: form.metaDescription || null,
+        seoTitle: form.seoTitle || null,
+        seoDescription: form.seoDescription || null,
+        ogImage: form.ogImage || null,
       };
       const url = editing ? `/api/admin/blog/posts/${editing.id}` : "/api/admin/blog/posts";
       const method = editing ? "PATCH" : "POST";
