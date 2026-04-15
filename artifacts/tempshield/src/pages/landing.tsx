@@ -94,7 +94,7 @@ const CODE_TABS = [
   data-api-key="YOUR_API_KEY">
 </script>
 
-<!-- That's it! TempShield auto-attaches to every
+<!-- That's it! LeadCop auto-attaches to every
      email field on the page and validates in real time. -->`,
   },
   {
@@ -919,7 +919,7 @@ export default function LandingPage() {
                 Real-time validation — right in the field
               </h3>
               <p className="text-muted-foreground text-sm leading-relaxed mb-6">
-                TempShield flags disposable addresses instantly, before the user
+                LeadCop flags disposable addresses instantly, before the user
                 even submits the form. No page reload. No server round-trip for
                 the user.
               </p>

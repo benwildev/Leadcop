@@ -82,7 +82,7 @@ router.post("/stripe", requireAuth, async (req, res) => {
         price_data: {
           currency: "usd",
           product_data: {
-            name: `TempShield ${plan} Plan`,
+            name: `LeadCop ${plan} Plan`,
             description: `${planConfig.requestLimit.toLocaleString()} requests/month`,
           },
           unit_amount: priceInCents,
@@ -144,7 +144,7 @@ router.post("/paypal/create-order", requireAuth, async (req, res) => {
       purchase_units: [
         {
           amount: { currency_code: "USD", value: price },
-          description: `TempShield ${plan} Plan`,
+          description: `LeadCop ${plan} Plan`,
           custom_id: customId,
         },
       ],

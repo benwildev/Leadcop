@@ -36,7 +36,7 @@ const INTEGRATIONS = [
     steps: [
       { title: "Get your API key", desc: "Sign up for a free account and copy your API key from the dashboard." },
       { title: "Add the script tag", desc: "Paste the snippet just before the closing </body> tag in your theme or page." },
-      { title: "Done!", desc: "TempShield automatically attaches to all email input fields and validates in real-time." },
+      { title: "Done!", desc: "LeadCop automatically attaches to all email input fields and validates in real-time." },
     ],
     code: `<!-- Paste just before the closing </body> tag -->
 <!-- Works on WordPress, Webflow, Squarespace, Shopify, etc. -->
@@ -271,7 +271,7 @@ async function noDisposableEmail(req, res, next) {
       });
     }
   } catch (err) {
-    console.error("TempShield check failed:", err.message);
+    console.error("LeadCop check failed:", err.message);
   }
 
   next();
@@ -380,7 +380,7 @@ export default function DocsPage() {
             <div className="mb-14">
               <h1 className="font-heading text-4xl font-bold text-foreground mb-4">API Documentation</h1>
               <p className="text-muted-foreground max-w-2xl">
-                Integrate TempShield into your stack in minutes. Choose your platform below to see the right integration guide.
+                Integrate LeadCop into your stack in minutes. Choose your platform below to see the right integration guide.
               </p>
             </div>
 

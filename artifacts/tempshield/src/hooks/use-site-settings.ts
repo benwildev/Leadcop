@@ -26,11 +26,11 @@ export interface PageSeo {
 const ALLOWED_SLUGS = new Set(["/", "/pricing", "/docs", "/login", "/signup"]);
 
 const DEFAULTS: SiteSettings = {
-  siteTitle: "TempShield",
+  siteTitle: "LeadCop",
   tagline: "Block Fake Emails. Protect Your Platform.",
   logoUrl: null,
   faviconUrl: null,
-  globalMetaTitle: "TempShield — Disposable Email Detection API",
+  globalMetaTitle: "LeadCop — Disposable Email Detection API",
   globalMetaDescription: "Industry-leading disposable email detection API. Real-time verification with 99.9% accuracy.",
   footerText: null,
 };

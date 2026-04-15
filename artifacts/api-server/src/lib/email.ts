@@ -128,7 +128,7 @@ export async function sendUpgradeDecisionNotification(opts: {
           ? `<p>Great news! Your request to upgrade to the <strong>${opts.plan}</strong> plan has been <strong style="color:#22c55e">approved</strong>. Your account has been updated — log in to see your new limits.</p>`
           : `<p>Unfortunately, your request to upgrade to the <strong>${opts.plan}</strong> plan has been <strong style="color:#ef4444">declined</strong> at this time. If you have questions, please reply to this email.</p>`
         }
-        <p style="color:#888;font-size:13px">Thank you for using TempShield.</p>
+        <p style="color:#888;font-size:13px">Thank you for using LeadCop.</p>
       </div>
     `,
   }).catch((err) => logger.error({ err }, "Failed to send upgrade decision email"));
@@ -152,12 +152,12 @@ export async function sendTestEmail(to: string) {
   await transport.sendMail({
     from: `"${settings.fromName}" <${settings.fromEmail}>`,
     to,
-    subject: "TempShield — Email test",
+    subject: "LeadCop — Email test",
     html: `
       <div style="font-family:sans-serif;max-width:560px;margin:0 auto">
         <h2 style="color:#8b5cf6">Email Test Successful</h2>
         <p>Your SMTP configuration is working correctly.</p>
-        <p style="color:#888;font-size:13px">Sent from TempShield admin panel.</p>
+        <p style="color:#888;font-size:13px">Sent from LeadCop admin panel.</p>
       </div>
     `,
   });

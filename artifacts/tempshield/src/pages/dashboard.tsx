@@ -1021,7 +1021,7 @@ function WebhooksTab({ plan }: { plan: string }) {
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card rounded-2xl p-6">
           <h3 className="font-heading text-sm font-semibold text-foreground mb-3">What you'll receive</h3>
           <pre className="bg-muted/50 rounded-xl p-4 text-xs font-mono text-foreground/80 overflow-x-auto">{`POST https://your-app.com/webhook
-X-TempShield-Signature: sha256=<hmac-hex>
+X-LeadCop-Signature: sha256=<hmac-hex>
 
 {
   "event": "email.detected",
@@ -1044,7 +1044,7 @@ X-TempShield-Signature: sha256=<hmac-hex>
           <h2 className="font-heading text-base font-semibold text-foreground">Webhooks</h2>
         </div>
         <p className="text-xs text-muted-foreground mb-5">
-          Receive a signed HTTP POST to your endpoint every time a disposable email is detected. We sign the payload with HMAC-SHA256 in the <code className="text-primary">X-TempShield-Signature</code> header.
+          Receive a signed HTTP POST to your endpoint every time a disposable email is detected. We sign the payload with HMAC-SHA256 in the <code className="text-primary">X-LeadCop-Signature</code> header.
         </p>
 
         {/* Create form — PRO only */}
@@ -1109,7 +1109,7 @@ X-TempShield-Signature: sha256=<hmac-hex>
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card rounded-2xl p-6">
         <h3 className="font-heading text-sm font-semibold text-foreground mb-3">Payload Format</h3>
         <pre className="bg-muted/50 rounded-xl p-4 text-xs font-mono text-foreground/80 overflow-x-auto">{`POST https://your-app.com/webhook
-X-TempShield-Signature: sha256=<hmac-hex>
+X-LeadCop-Signature: sha256=<hmac-hex>
 
 {
   "event": "email.detected",
@@ -1503,7 +1503,7 @@ function PagesPanel({ planConfig, plan }: { planConfig?: DashboardPlanConfig; pl
         <h2 className="font-heading text-base font-semibold text-foreground">Protected Pages</h2>
       </div>
       <p className="text-xs text-muted-foreground mb-4">
-        URL paths to protect with TempShield validation.{" "}
+        URL paths to protect with LeadCop validation.{" "}
         {limit > 0
           ? <span>{pages.length} / {limit} used</span>
           : <span className="text-yellow-400">Not available on your plan.</span>}

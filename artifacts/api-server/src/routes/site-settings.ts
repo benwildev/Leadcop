@@ -9,11 +9,11 @@ const router = Router();
 const ALLOWED_SLUGS = new Set(["/", "/pricing", "/docs", "/login", "/signup"]);
 
 const DEFAULTS = {
-  siteTitle: "TempShield",
+  siteTitle: "LeadCop",
   tagline: "Block Fake Emails. Protect Your Platform.",
   logoUrl: null as string | null,
   faviconUrl: null as string | null,
-  globalMetaTitle: "TempShield — Disposable Email Detection API",
+  globalMetaTitle: "LeadCop — Disposable Email Detection API",
   globalMetaDescription: "Industry-leading disposable email detection API. Real-time verification with 99.9% accuracy.",
   footerText: null as string | null,
 };

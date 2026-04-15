@@ -1667,7 +1667,7 @@ function EmailSection() {
               type="text"
               value={form.fromName || ""}
               onChange={e => set("fromName", e.target.value)}
-              placeholder="TempShield"
+              placeholder="LeadCop"
               className="w-full bg-background/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
             />
           </div>
@@ -1998,11 +1998,11 @@ function BrandingSection() {
   });
 
   const [form, setForm] = useState<SiteSettingsData>({
-    siteTitle: "TempShield",
+    siteTitle: "LeadCop",
     tagline: "Block Fake Emails. Protect Your Platform.",
     logoUrl: null,
     faviconUrl: null,
-    globalMetaTitle: "TempShield — Disposable Email Detection API",
+    globalMetaTitle: "LeadCop — Disposable Email Detection API",
     globalMetaDescription: "Industry-leading disposable email detection API. Real-time verification with 99.9% accuracy.",
     footerText: null,
   });
@@ -2085,7 +2085,7 @@ function BrandingSection() {
             <h3 className="font-heading text-sm font-semibold text-foreground flex items-center gap-2">
               <Image className="w-4 h-4 text-primary" /> Site Identity
             </h3>
-            {field("Site Title", "siteTitle", "TempShield", "Shown in the navbar and footer")}
+            {field("Site Title", "siteTitle", "LeadCop", "Shown in the navbar and footer")}
             {field("Tagline", "tagline", "Block Fake Emails. Protect Your Platform.", "Short hero tagline (optional)", true)}
             {field("Logo URL", "logoUrl", "https://example.com/logo.png", "Link to your logo image — replaces the default Shield icon")}
             {field("Favicon URL", "faviconUrl", "https://example.com/favicon.ico", "Browser tab icon (ICO, PNG, or SVG)")}
@@ -2095,7 +2095,7 @@ function BrandingSection() {
             <h3 className="font-heading text-sm font-semibold text-foreground flex items-center gap-2">
               <FileText className="w-4 h-4 text-primary" /> Global Meta Defaults
             </h3>
-            {field("Default Meta Title", "globalMetaTitle", "TempShield — Disposable Email Detection API", "Used as the browser tab title on all pages")}
+            {field("Default Meta Title", "globalMetaTitle", "LeadCop — Disposable Email Detection API", "Used as the browser tab title on all pages")}
             {field("Default Meta Description", "globalMetaDescription", "", "Default SEO description for all pages", true)}
           </motion.div>
 
@@ -2103,7 +2103,7 @@ function BrandingSection() {
             <h3 className="font-heading text-sm font-semibold text-foreground flex items-center gap-2">
               <Globe className="w-4 h-4 text-primary" /> Footer
             </h3>
-            {field("Footer Text", "footerText", "Built for developers, by developers. © 2025 TempShield.", "Overrides the default footer copyright line. Leave blank to use the default.", true)}
+            {field("Footer Text", "footerText", "Built for developers, by developers. © 2025 LeadCop.", "Overrides the default footer copyright line. Leave blank to use the default.", true)}
           </motion.div>
 
           {error && <p className="text-sm text-red-400">{error}</p>}

@@ -3,9 +3,9 @@ import { render, screen } from "@testing-library/react";
 import AuthRightPanel from "@/components/AuthRightPanel";
 
 describe("AuthRightPanel", () => {
-  it("renders the TempShield brand name", () => {
+  it("renders the LeadCop brand name", () => {
     render(<AuthRightPanel />);
-    expect(screen.getByText("TempShield")).toBeTruthy();
+    expect(screen.getByText("LeadCop")).toBeTruthy();
   });
 
   it("renders the Real-time detection feature", () => {

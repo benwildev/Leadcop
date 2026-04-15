@@ -145,7 +145,7 @@ export default function EmailCheckForm({ email, onEmailChange, apiUrl = "/api/ch
         </button>
       </div>
       <p className="mt-4 text-center text-xs text-muted-foreground">
-        Protected by TempShield
+        Protected by LeadCop
       </p>
     </div>
   );

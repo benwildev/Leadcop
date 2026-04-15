@@ -76,7 +76,7 @@ export async function fireWebhook(
   const body = JSON.stringify(payload);
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    "User-Agent": "TempShield-Webhook/1.0",
+    "User-Agent": "LeadCop-Webhook/1.0",
   };
 
   if (secret) {
@@ -84,7 +84,7 @@ export async function fireWebhook(
       .createHmac("sha256", secret)
       .update(body)
       .digest("hex");
-    headers["X-TempShield-Signature"] = `sha256=${sig}`;
+    headers["X-LeadCop-Signature"] = `sha256=${sig}`;
   }
 
   const controller = new AbortController();

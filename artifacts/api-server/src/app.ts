@@ -36,7 +36,7 @@ app.use(
  *   ✅ No credentials — auth travels in the Authorization header (Bearer API key)
  *   ✅ Preflight OPTIONS handled automatically
  *
- * All other /api/* routes — dashboard, auth, admin (only called from TempShield's own frontend)
+ * All other /api/* routes — dashboard, auth, admin (only called from LeadCop's own frontend)
  *   ✅ Reflect the actual request origin so session cookies work
  *   ✅ credentials: true allows cookies for session-based auth
  */
