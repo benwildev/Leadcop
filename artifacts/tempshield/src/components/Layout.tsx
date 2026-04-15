@@ -100,6 +100,12 @@ export function Navbar() {
           >
             Email Checker
           </Link>
+          <Link
+            href="/blog"
+            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Blog
+          </Link>
           {user && (
             <Link
               href="/dashboard"
@@ -214,6 +220,13 @@ export function Navbar() {
               >
                 Email Checker
               </Link>
+              <Link
+                href="/blog"
+                onClick={() => setMobileOpen(false)}
+                className="text-sm font-medium text-muted-foreground hover:text-foreground"
+              >
+                Blog
+              </Link>
               {user ? (
                 <>
                   <Link
@@ -299,6 +312,12 @@ export function Footer() {
               className="transition-colors hover:text-foreground"
             >
               Email Checker
+            </Link>
+            <Link
+              href="/blog"
+              className="transition-colors hover:text-foreground"
+            >
+              Blog
             </Link>
             <a
               href="https://github.com/disposable-email-domains/disposable-email-domains"

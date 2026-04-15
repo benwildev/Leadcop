@@ -28,7 +28,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { format, parseISO } from "date-fns";
 
-type Section = "overview" | "users" | "subscriptions" | "plan-config" | "api-keys" | "domains" | "payment" | "email" | "revenue" | "branding" | "seo" | "support";
+type Section = "overview" | "users" | "subscriptions" | "plan-config" | "api-keys" | "domains" | "payment" | "email" | "revenue" | "branding" | "seo" | "support" | "blog" | "newsletter";
 
 const NAV_GROUPS: { label: string; items: { id: Section; label: string; icon: React.ElementType }[] }[] = [
   {
@@ -53,6 +53,13 @@ const NAV_GROUPS: { label: string; items: { id: Section; label: string; icon: Re
       { id: "email", label: "Email", icon: Mail },
       { id: "branding", label: "Branding", icon: Image },
       { id: "seo", label: "SEO", icon: Tag },
+    ],
+  },
+  {
+    label: "Content",
+    items: [
+      { id: "blog", label: "Blog", icon: FileText },
+      { id: "newsletter", label: "Newsletter", icon: Send },
     ],
   },
   {
@@ -2803,6 +2810,610 @@ function SupportSection() {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Blog Admin Section
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface BlogPost {
+  id: number;
+  title: string;
+  slug: string;
+  excerpt: string;
+  content: string;
+  author: string;
+  coverImage: string | null;
+  status: "DRAFT" | "PUBLISHED";
+  metaTitle: string | null;
+  metaDescription: string | null;
+  publishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+const EMPTY_POST = {
+  title: "",
+  slug: "",
+  excerpt: "",
+  content: "",
+  author: "LeadCop Team",
+  coverImage: "",
+  status: "DRAFT" as const,
+  metaTitle: "",
+  metaDescription: "",
+};
+
+function slugify(text: string): string {
+  return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
+function BlogAdminSection() {
+  const qc = useQueryClient();
+  const [editing, setEditing] = useState<BlogPost | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [form, setForm] = useState(EMPTY_POST);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState<number | null>(null);
+
+  const postsQuery = useQuery<{ posts: BlogPost[] }>({
+    queryKey: ["/api/admin/blog/posts"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/blog/posts", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch posts");
+      return res.json();
+    },
+  });
+
+  const posts = postsQuery.data?.posts ?? [];
+
+  const openCreate = () => {
+    setForm(EMPTY_POST);
+    setEditing(null);
+    setCreating(true);
+  };
+
+  const openEdit = (post: BlogPost) => {
+    setForm({
+      title: post.title,
+      slug: post.slug,
+      excerpt: post.excerpt,
+      content: post.content,
+      author: post.author,
+      coverImage: post.coverImage ?? "",
+      status: post.status,
+      metaTitle: post.metaTitle ?? "",
+      metaDescription: post.metaDescription ?? "",
+    });
+    setEditing(post);
+    setCreating(false);
+  };
+
+  const handleClose = () => { setEditing(null); setCreating(false); };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const body = {
+        ...form,
+        coverImage: form.coverImage || null,
+        metaTitle: form.metaTitle || null,
+        metaDescription: form.metaDescription || null,
+      };
+      const url = editing ? `/api/admin/blog/posts/${editing.id}` : "/api/admin/blog/posts";
+      const method = editing ? "PATCH" : "POST";
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const d = await res.json();
+        alert(d.error || "Failed to save");
+        return;
+      }
+      qc.invalidateQueries({ queryKey: ["/api/admin/blog/posts"] });
+      handleClose();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("Delete this post? This cannot be undone.")) return;
+    setDeleting(id);
+    try {
+      await fetch(`/api/admin/blog/posts/${id}`, { method: "DELETE", credentials: "include" });
+      qc.invalidateQueries({ queryKey: ["/api/admin/blog/posts"] });
+    } finally {
+      setDeleting(null);
+    }
+  };
+
+  const isFormOpen = creating || !!editing;
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="font-heading text-2xl font-bold text-foreground">Blog</h2>
+          <p className="text-sm text-muted-foreground mt-1">Create and manage blog posts</p>
+        </div>
+        <button
+          onClick={openCreate}
+          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+        >
+          <Plus className="w-4 h-4" /> New Post
+        </button>
+      </div>
+
+      {/* Post editor */}
+      {isFormOpen && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass-card rounded-2xl p-6 mb-6 border border-primary/20"
+        >
+          <h3 className="font-heading text-lg font-semibold text-foreground mb-4">
+            {editing ? "Edit Post" : "New Post"}
+          </h3>
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="md:col-span-2">
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Title</label>
+              <input
+                value={form.title}
+                onChange={e => setForm(f => ({ ...f, title: e.target.value, slug: f.slug || slugify(e.target.value) }))}
+                placeholder="Post title…"
+                className="w-full px-3 py-2 rounded-lg bg-muted/40 border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Slug</label>
+              <input
+                value={form.slug}
+                onChange={e => setForm(f => ({ ...f, slug: slugify(e.target.value) }))}
+                placeholder="url-friendly-slug"
+                className="w-full px-3 py-2 rounded-lg bg-muted/40 border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 font-mono"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Author</label>
+              <input
+                value={form.author}
+                onChange={e => setForm(f => ({ ...f, author: e.target.value }))}
+                placeholder="Author name"
+                className="w-full px-3 py-2 rounded-lg bg-muted/40 border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Status</label>
+              <select
+                value={form.status}
+                onChange={e => setForm(f => ({ ...f, status: e.target.value as "DRAFT" | "PUBLISHED" }))}
+                className="w-full px-3 py-2 rounded-lg bg-muted/40 border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+              >
+                <option value="DRAFT">Draft</option>
+                <option value="PUBLISHED">Published</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Cover Image URL</label>
+              <input
+                value={form.coverImage}
+                onChange={e => setForm(f => ({ ...f, coverImage: e.target.value }))}
+                placeholder="https://example.com/image.jpg"
+                className="w-full px-3 py-2 rounded-lg bg-muted/40 border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Excerpt</label>
+              <textarea
+                value={form.excerpt}
+                onChange={e => setForm(f => ({ ...f, excerpt: e.target.value }))}
+                placeholder="Short description shown on the blog list…"
+                rows={2}
+                className="w-full px-3 py-2 rounded-lg bg-muted/40 border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Content (HTML)</label>
+              <textarea
+                value={form.content}
+                onChange={e => setForm(f => ({ ...f, content: e.target.value }))}
+                placeholder="<p>Your article content in HTML…</p>"
+                rows={10}
+                className="w-full px-3 py-2 rounded-lg bg-muted/40 border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 font-mono resize-y"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Meta Title</label>
+              <input
+                value={form.metaTitle}
+                onChange={e => setForm(f => ({ ...f, metaTitle: e.target.value }))}
+                placeholder="SEO title (optional)"
+                className="w-full px-3 py-2 rounded-lg bg-muted/40 border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Meta Description</label>
+              <input
+                value={form.metaDescription}
+                onChange={e => setForm(f => ({ ...f, metaDescription: e.target.value }))}
+                placeholder="SEO description (optional)"
+                className="w-full px-3 py-2 rounded-lg bg-muted/40 border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+              />
+            </div>
+          </div>
+          <div className="flex gap-3 mt-5">
+            <button
+              onClick={handleSave}
+              disabled={saving || !form.title || !form.slug}
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+            >
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+              {editing ? "Save Changes" : "Create Post"}
+            </button>
+            <button onClick={handleClose} className="px-5 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+              Cancel
+            </button>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Posts list */}
+      <div className="glass-card rounded-xl overflow-hidden">
+        {postsQuery.isLoading ? (
+          <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+        ) : posts.length === 0 ? (
+          <div className="text-center py-12 text-muted-foreground text-sm">No blog posts yet. Create your first one!</div>
+        ) : (
+          <table className="w-full text-sm text-left">
+            <thead className="border-b border-border">
+              <tr>
+                {["Title", "Status", "Author", "Published", "Actions"].map(h => (
+                  <th key={h} className="px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {posts.map(post => (
+                <tr key={post.id} className="border-b border-border/50 last:border-0 hover:bg-muted/20 transition-colors">
+                  <td className="px-4 py-3">
+                    <div className="font-medium text-foreground line-clamp-1">{post.title}</div>
+                    <div className="text-xs text-muted-foreground font-mono">/blog/{post.slug}</div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${post.status === "PUBLISHED" ? "bg-green-500/15 text-green-400" : "bg-muted text-muted-foreground"}`}>
+                      {post.status === "PUBLISHED" ? "Published" : "Draft"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-muted-foreground">{post.author}</td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground">
+                    {post.publishedAt ? format(parseISO(post.publishedAt), "MMM d, yyyy") : "—"}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => openEdit(post)} title="Edit"
+                        className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                        <FileText className="w-3.5 h-3.5" />
+                      </button>
+                      <a href={`/blog/${post.slug}`} target="_blank" rel="noopener noreferrer" title="View"
+                        className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors">
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                      <button onClick={() => handleDelete(post.id)} disabled={deleting === post.id} title="Delete"
+                        className="p-1.5 rounded-lg text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors">
+                        {deleting === post.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Newsletter Admin Section
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface NLSubscriber {
+  id: number;
+  email: string;
+  name: string | null;
+  status: "ACTIVE" | "UNSUBSCRIBED";
+  subscribedAt: string;
+  unsubscribedAt: string | null;
+}
+
+interface NLCampaign {
+  id: number;
+  subject: string;
+  previewText: string | null;
+  htmlContent: string;
+  status: "DRAFT" | "SENDING" | "SENT";
+  recipientCount: number;
+  sentAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+const EMPTY_CAMPAIGN = { subject: "", previewText: "", htmlContent: "" };
+
+function NewsletterAdminSection() {
+  const qc = useQueryClient();
+  const [tab, setTab] = useState<"subscribers" | "campaigns">("subscribers");
+
+  // Subscribers
+  const subsQuery = useQuery<{ subscribers: NLSubscriber[]; total: number; activeCount: number }>({
+    queryKey: ["/api/admin/newsletter/subscribers"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/newsletter/subscribers", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+  });
+  const [deletingSub, setDeletingSub] = useState<number | null>(null);
+  const handleDeleteSub = async (id: number, email: string) => {
+    if (!confirm(`Remove ${email} from subscribers?`)) return;
+    setDeletingSub(id);
+    try {
+      await fetch(`/api/admin/newsletter/subscribers/${id}`, { method: "DELETE", credentials: "include" });
+      qc.invalidateQueries({ queryKey: ["/api/admin/newsletter/subscribers"] });
+    } finally { setDeletingSub(null); }
+  };
+
+  // Campaigns
+  const campaignsQuery = useQuery<{ campaigns: NLCampaign[] }>({
+    queryKey: ["/api/admin/newsletter/campaigns"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/newsletter/campaigns", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+  });
+  const [editingCampaign, setEditingCampaign] = useState<NLCampaign | null>(null);
+  const [creatingCampaign, setCreatingCampaign] = useState(false);
+  const [campaignForm, setCampaignForm] = useState(EMPTY_CAMPAIGN);
+  const [savingCampaign, setSavingCampaign] = useState(false);
+  const [sendingId, setSendingId] = useState<number | null>(null);
+  const [deletingCampaign, setDeletingCampaign] = useState<number | null>(null);
+
+  const campaigns = campaignsQuery.data?.campaigns ?? [];
+  const subscribers = subsQuery.data?.subscribers ?? [];
+
+  const openCreateCampaign = () => {
+    setCampaignForm(EMPTY_CAMPAIGN);
+    setEditingCampaign(null);
+    setCreatingCampaign(true);
+  };
+  const openEditCampaign = (c: NLCampaign) => {
+    setCampaignForm({ subject: c.subject, previewText: c.previewText ?? "", htmlContent: c.htmlContent });
+    setEditingCampaign(c);
+    setCreatingCampaign(false);
+  };
+  const closeCampaignForm = () => { setCreatingCampaign(false); setEditingCampaign(null); };
+
+  const handleSaveCampaign = async () => {
+    setSavingCampaign(true);
+    try {
+      const body = { ...campaignForm, previewText: campaignForm.previewText || null };
+      const url = editingCampaign ? `/api/admin/newsletter/campaigns/${editingCampaign.id}` : "/api/admin/newsletter/campaigns";
+      const method = editingCampaign ? "PATCH" : "POST";
+      const res = await fetch(url, {
+        method, headers: { "Content-Type": "application/json" },
+        credentials: "include", body: JSON.stringify(body),
+      });
+      if (!res.ok) { const d = await res.json(); alert(d.error || "Failed to save"); return; }
+      qc.invalidateQueries({ queryKey: ["/api/admin/newsletter/campaigns"] });
+      closeCampaignForm();
+    } finally { setSavingCampaign(false); }
+  };
+
+  const handleSend = async (id: number, subject: string) => {
+    if (!confirm(`Send "${subject}" to all active subscribers? This cannot be undone.`)) return;
+    setSendingId(id);
+    try {
+      const res = await fetch(`/api/admin/newsletter/campaigns/${id}/send`, { method: "POST", credentials: "include" });
+      const d = await res.json();
+      if (!res.ok) { alert(d.error || "Failed to send"); return; }
+      alert(d.message);
+      qc.invalidateQueries({ queryKey: ["/api/admin/newsletter/campaigns"] });
+    } finally { setSendingId(null); }
+  };
+
+  const handleDeleteCampaign = async (id: number) => {
+    if (!confirm("Delete this campaign?")) return;
+    setDeletingCampaign(id);
+    try {
+      await fetch(`/api/admin/newsletter/campaigns/${id}`, { method: "DELETE", credentials: "include" });
+      qc.invalidateQueries({ queryKey: ["/api/admin/newsletter/campaigns"] });
+    } finally { setDeletingCampaign(null); }
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="font-heading text-2xl font-bold text-foreground">Newsletter</h2>
+          <p className="text-sm text-muted-foreground mt-1">Manage subscribers and send campaigns</p>
+        </div>
+        <div className="flex gap-2">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-green-500/10 border border-green-500/20 text-green-400 text-xs font-semibold px-3 py-1.5">
+            <Users className="w-3 h-3" /> {subsQuery.data?.activeCount ?? 0} active
+          </span>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 mb-6 bg-muted/30 rounded-xl p-1 w-fit">
+        {(["subscribers", "campaigns"] as const).map(t => (
+          <button key={t} onClick={() => setTab(t)}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all capitalize ${tab === t ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
+            {t}
+          </button>
+        ))}
+      </div>
+
+      {tab === "subscribers" ? (
+        <div className="glass-card rounded-xl overflow-hidden">
+          {subsQuery.isLoading ? (
+            <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+          ) : subscribers.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground text-sm">No subscribers yet.</div>
+          ) : (
+            <table className="w-full text-sm text-left">
+              <thead className="border-b border-border">
+                <tr>
+                  {["Email", "Name", "Status", "Subscribed", "Actions"].map(h => (
+                    <th key={h} className="px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {subscribers.map(sub => (
+                  <tr key={sub.id} className="border-b border-border/50 last:border-0 hover:bg-muted/20 transition-colors">
+                    <td className="px-4 py-3 font-medium text-foreground">{sub.email}</td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground">{sub.name || "—"}</td>
+                    <td className="px-4 py-3">
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${sub.status === "ACTIVE" ? "bg-green-500/15 text-green-400" : "bg-muted text-muted-foreground"}`}>
+                        {sub.status === "ACTIVE" ? "Active" : "Unsubscribed"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">
+                      {format(parseISO(sub.subscribedAt), "MMM d, yyyy")}
+                    </td>
+                    <td className="px-4 py-3">
+                      <button onClick={() => handleDeleteSub(sub.id, sub.email)} disabled={deletingSub === sub.id}
+                        title="Remove subscriber"
+                        className="p-1.5 rounded-lg text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors">
+                        {deletingSub === sub.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      ) : (
+        <div>
+          <div className="flex justify-end mb-4">
+            <button onClick={openCreateCampaign}
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors">
+              <Plus className="w-4 h-4" /> New Campaign
+            </button>
+          </div>
+
+          {(creatingCampaign || !!editingCampaign) && (
+            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+              className="glass-card rounded-2xl p-6 mb-6 border border-primary/20">
+              <h3 className="font-heading text-lg font-semibold text-foreground mb-4">
+                {editingCampaign ? "Edit Campaign" : "New Campaign"}
+              </h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Subject</label>
+                  <input value={campaignForm.subject} onChange={e => setCampaignForm(f => ({ ...f, subject: e.target.value }))}
+                    placeholder="Email subject line"
+                    className="w-full px-3 py-2 rounded-lg bg-muted/40 border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Preview Text</label>
+                  <input value={campaignForm.previewText} onChange={e => setCampaignForm(f => ({ ...f, previewText: e.target.value }))}
+                    placeholder="Short preview shown in inboxes (optional)"
+                    className="w-full px-3 py-2 rounded-lg bg-muted/40 border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">HTML Content</label>
+                  <textarea value={campaignForm.htmlContent} onChange={e => setCampaignForm(f => ({ ...f, htmlContent: e.target.value }))}
+                    placeholder="<p>Your email content in HTML…</p>"
+                    rows={10}
+                    className="w-full px-3 py-2 rounded-lg bg-muted/40 border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 font-mono resize-y" />
+                </div>
+              </div>
+              <div className="flex gap-3 mt-5">
+                <button onClick={handleSaveCampaign} disabled={savingCampaign || !campaignForm.subject || !campaignForm.htmlContent}
+                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors">
+                  {savingCampaign ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                  {editingCampaign ? "Save Changes" : "Create Campaign"}
+                </button>
+                <button onClick={closeCampaignForm} className="px-5 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          )}
+
+          <div className="glass-card rounded-xl overflow-hidden">
+            {campaignsQuery.isLoading ? (
+              <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+            ) : campaigns.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground text-sm">No campaigns yet. Create your first one!</div>
+            ) : (
+              <table className="w-full text-sm text-left">
+                <thead className="border-b border-border">
+                  <tr>
+                    {["Subject", "Status", "Recipients", "Sent At", "Actions"].map(h => (
+                      <th key={h} className="px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {campaigns.map(c => (
+                    <tr key={c.id} className="border-b border-border/50 last:border-0 hover:bg-muted/20 transition-colors">
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-foreground line-clamp-1">{c.subject}</div>
+                        {c.previewText && <div className="text-xs text-muted-foreground line-clamp-1">{c.previewText}</div>}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                          c.status === "SENT" ? "bg-green-500/15 text-green-400"
+                          : c.status === "SENDING" ? "bg-yellow-500/15 text-yellow-400"
+                          : "bg-muted text-muted-foreground"
+                        }`}>
+                          {c.status === "SENT" ? "Sent" : c.status === "SENDING" ? "Sending…" : "Draft"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-muted-foreground">{c.recipientCount > 0 ? c.recipientCount : "—"}</td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground">
+                        {c.sentAt ? format(parseISO(c.sentAt), "MMM d, yyyy HH:mm") : "—"}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1">
+                          {c.status !== "SENT" && (
+                            <>
+                              <button onClick={() => openEditCampaign(c)} title="Edit"
+                                className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                                <FileText className="w-3.5 h-3.5" />
+                              </button>
+                              <button onClick={() => handleSend(c.id, c.subject)} disabled={sendingId === c.id} title="Send"
+                                className="p-1.5 rounded-lg text-muted-foreground hover:text-green-400 hover:bg-green-500/10 transition-colors">
+                                {sendingId === c.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                              </button>
+                              <button onClick={() => handleDeleteCampaign(c.id)} disabled={deletingCampaign === c.id} title="Delete"
+                                className="p-1.5 rounded-lg text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors">
+                                {deletingCampaign === c.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const { user } = useAuth();
   const [section, setSection] = useState<Section>("overview");
@@ -2829,6 +3440,8 @@ export default function AdminPage() {
     branding: <BrandingSection />,
     seo: <SeoSection />,
     support: <SupportSection />,
+    blog: <BlogAdminSection />,
+    newsletter: <NewsletterAdminSection />,
   };
 
   return (

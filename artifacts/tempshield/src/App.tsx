@@ -19,6 +19,8 @@ import SupportNewPage from "./pages/support-new";
 import SupportTicketPage from "./pages/support-ticket";
 import ForgotPasswordPage from "./pages/forgot-password";
 import ResetPasswordPage from "./pages/reset-password";
+import BlogPage from "./pages/blog";
+import BlogPostPage from "./pages/blog-post";
 
 const queryClient = new QueryClient();
 
@@ -57,6 +59,8 @@ function Router() {
       <Route path="/signup" component={RegisterPage} />
       <Route path="/forgot-password" component={ForgotPasswordPage} />
       <Route path="/reset-password" component={ResetPasswordPage} />
+      <Route path="/blog" component={BlogPage} />
+      <Route path="/blog/:slug" component={BlogPostPage} />
       
       {/* Protected Routes */}
       <Route path="/dashboard">

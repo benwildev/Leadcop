@@ -13,6 +13,8 @@ import verifyRouter from "./verify.js";
 import bulkJobsRouter from "./bulk-jobs.js";
 import accountRouter from "./account.js";
 import supportRouter from "./support.js";
+import blogRouter from "./blog.js";
+import newsletterRouter from "./newsletter.js";
 
 const router: IRouter = Router();
 
@@ -30,5 +32,7 @@ router.use(verifyRouter);
 router.use(bulkJobsRouter);
 router.use(accountRouter);
 router.use("/support", supportRouter);
+router.use(blogRouter);
+router.use(newsletterRouter);
 
 export default router;

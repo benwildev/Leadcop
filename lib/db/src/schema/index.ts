@@ -13,3 +13,5 @@ export * from "./email-settings";
 export * from "./site-settings";
 export * from "./bulk-jobs";
 export * from "./support";
+export * from "./blog";
+export * from "./newsletter";

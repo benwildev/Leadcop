@@ -653,6 +653,108 @@ function formatPlanPrice(planKey: string, price: number): string {
   return `$${price % 1 === 0 ? price : price.toFixed(2)}`;
 }
 
+function NewsletterSection() {
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [message, setMessage] = useState("");
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email) return;
+    setStatus("loading");
+    try {
+      const res = await fetch("/api/newsletter/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, name }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Subscription failed");
+      setStatus("success");
+      setMessage(data.message || "Thanks for subscribing!");
+      setEmail("");
+      setName("");
+    } catch (err: any) {
+      setStatus("error");
+      setMessage(err.message || "Something went wrong. Please try again.");
+    }
+  };
+
+  return (
+    <section className="py-20 px-6">
+      <motion.div
+        initial={{ opacity: 0, y: 24 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.5 }}
+        className="mx-auto max-w-2xl text-center"
+      >
+        <div className="glass-card rounded-3xl p-10">
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-4 py-1.5">
+            <Download className="h-3.5 w-3.5 text-primary" />
+            <span className="text-xs font-medium text-primary">Stay in the loop</span>
+          </div>
+          <h2 className="font-heading text-3xl font-bold text-foreground mb-3">
+            Get email protection tips &amp; updates
+          </h2>
+          <p className="text-muted-foreground mb-8">
+            Join our newsletter for actionable guides, product updates, and real-world insights on keeping your forms and campaigns clean.
+          </p>
+
+          {status === "success" ? (
+            <div className="flex items-center justify-center gap-2 rounded-xl bg-green-500/10 border border-green-500/30 text-green-400 px-6 py-4 text-sm font-medium">
+              <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+              {message}
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-3">
+              <div className="flex gap-3">
+                <input
+                  type="text"
+                  placeholder="First name (optional)"
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  className="flex-1 min-w-0 px-4 py-2.5 rounded-xl bg-muted/40 border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all"
+                />
+                <input
+                  type="email"
+                  required
+                  placeholder="Your email address"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  className="flex-1 min-w-0 px-4 py-2.5 rounded-xl bg-muted/40 border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={status === "loading"}
+                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-all hover:bg-primary/90 disabled:opacity-60"
+              >
+                {status === "loading" ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Subscribing…
+                  </>
+                ) : (
+                  <>
+                    Subscribe — it's free
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+              {status === "error" && (
+                <p className="text-xs text-red-400 text-center">{message}</p>
+              )}
+              <p className="text-xs text-muted-foreground">No spam. Unsubscribe anytime.</p>
+            </form>
+          )}
+        </div>
+      </motion.div>
+    </section>
+  );
+}
+
 export default function LandingPage() {
   const [activeTab, setActiveTab] = useState("html");
   const [demoEmail, setDemoEmail] = useState("");
@@ -1360,6 +1462,9 @@ export default function LandingPage() {
 
         </div>
       </section>
+
+      {/* ── NEWSLETTER ───────────────────────────────────── */}
+      <NewsletterSection />
 
       {/* ── CLOSING CTA ──────────────────────────────────── */}
       <section className="relative py-24 px-6 overflow-hidden">
