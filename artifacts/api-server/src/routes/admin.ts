@@ -8,6 +8,8 @@ import { syncDomainsFromGitHub } from "../lib/domain-cache.js";
 import { getPlanConfig, generateApiKey } from "../lib/auth.js";
 import { sendUpgradeDecisionNotification } from "../lib/email.js";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage.js";
+import multer from "multer";
+import { v2 as cloudinary } from "cloudinary";
 
 const objectStorage = new ObjectStorageService();
 
@@ -904,6 +906,43 @@ router.get("/revenue", requireAdmin, async (req, res) => {
     .reduce((a, b) => a + Number(b.count), 0);
 
   res.json({ mrr, totalPaidUsers, revenueByPlan, monthlySubs, recent });
+});
+
+// ── Cloudinary upload ────────────────────────────────────────────
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = ["image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml", "image/x-icon", "image/vnd.microsoft.icon"];
+    if (allowed.includes(file.mimetype)) cb(null, true);
+    else cb(new Error("Only image files are allowed"));
+  },
+});
+
+router.post("/upload", requireAdmin, upload.single("file"), async (req: any, res: any) => {
+  if (!req.file) return res.status(400).json({ error: "No file provided" });
+  try {
+    const result = await new Promise<{ secure_url: string }>((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { folder: "leadcop-branding", resource_type: "image" },
+        (err, result) => {
+          if (err || !result) reject(err ?? new Error("Upload failed"));
+          else resolve(result as { secure_url: string });
+        }
+      );
+      Readable.from(req.file!.buffer).pipe(stream);
+    });
+    res.json({ url: result.secure_url });
+  } catch (err: any) {
+    req.log?.error({ err }, "Cloudinary upload failed");
+    res.status(500).json({ error: err?.message ?? "Upload failed" });
+  }
 });
 
 export default router;

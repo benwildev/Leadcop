@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import MarkdownEditor from "@/components/MarkdownEditor";
+import CloudinaryUpload from "@/components/CloudinaryUpload";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import {
@@ -2379,8 +2380,19 @@ function BrandingSection() {
             </h3>
             {field("Site Title", "siteTitle", "LeadCop", "Shown in the navbar and footer")}
             {field("Tagline", "tagline", "Block Fake Emails. Protect Your Platform.", "Short hero tagline (optional)", true)}
-            {field("Logo URL", "logoUrl", "https://example.com/logo.png", "Link to your logo image — replaces the default Shield icon")}
-            {field("Favicon URL", "faviconUrl", "https://example.com/favicon.ico", "Browser tab icon (ICO, PNG, or SVG)")}
+            <CloudinaryUpload
+              label="Logo"
+              value={form.logoUrl}
+              onChange={url => setForm(f => ({ ...f, logoUrl: url }))}
+              hint="Replaces the default Shield icon in the navbar — PNG, SVG or WebP recommended"
+            />
+            <CloudinaryUpload
+              label="Favicon"
+              value={form.faviconUrl}
+              onChange={url => setForm(f => ({ ...f, faviconUrl: url }))}
+              accept="image/png,image/jpeg,image/svg+xml,image/x-icon,image/vnd.microsoft.icon"
+              hint="Browser tab icon — ICO, PNG or SVG, ideally 32×32 or 64×64 px"
+            />
           </motion.div>
 
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }} className="glass-card rounded-xl p-6 space-y-5">
