@@ -682,7 +682,7 @@ function NewsletterSection() {
   };
 
   return (
-    <section className="py-20 px-6">
+    <section className="py-14 sm:py-20 px-4 sm:px-6">
       <motion.div
         initial={{ opacity: 0, y: 24 }}
         whileInView={{ opacity: 1, y: 0 }}
@@ -690,7 +690,7 @@ function NewsletterSection() {
         transition={{ duration: 0.5 }}
         className="mx-auto max-w-2xl text-center"
       >
-        <div className="glass-card rounded-3xl p-10">
+        <div className="glass-card rounded-3xl p-6 sm:p-10">
           <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-4 py-1.5">
             <Download className="h-3.5 w-3.5 text-primary" />
             <span className="text-xs font-medium text-primary">Stay in the loop</span>
@@ -709,7 +709,7 @@ function NewsletterSection() {
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-3">
-              <div className="flex gap-3">
+              <div className="flex flex-col sm:flex-row gap-3">
                 <input
                   type="text"
                   placeholder="First name (optional)"
@@ -812,7 +812,7 @@ export default function LandingPage() {
       <Navbar />
 
       {/* ── HERO ─────────────────────────────────────────── */}
-      <section className="relative min-h-screen overflow-hidden pt-32 pb-20">
+      <section className="relative min-h-screen overflow-hidden pt-24 sm:pt-32 pb-16 sm:pb-20">
         <div className="gradient-mesh pointer-events-none absolute inset-0" />
 
         <motion.div
@@ -835,7 +835,7 @@ export default function LandingPage() {
           {/* Headline */}
           <motion.h1
             variants={item}
-            className="font-heading text-4xl font-bold leading-tight tracking-tight text-foreground md:text-6xl"
+            className="font-heading text-3xl font-bold leading-tight tracking-tight text-foreground sm:text-4xl md:text-6xl"
           >
             Stop Fake Signups.{" "}
             <span className="text-primary">Protect Your Revenue.</span>
@@ -902,7 +902,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── PAIN POINTS ──────────────────────────────────── */}
-      <section className="relative py-20 px-6">
+      <section className="relative py-14 sm:py-20 px-4 sm:px-6">
         <div className="mx-auto max-w-5xl">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -948,7 +948,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── FEATURES ─────────────────────────────────────── */}
-      <section id="features" className="relative py-24 px-6">
+      <section id="features" className="relative py-16 sm:py-24 px-4 sm:px-6">
         <div className="mx-auto max-w-6xl">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -994,7 +994,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── HOW IT WORKS ─────────────────────────────────── */}
-      <section className="relative py-24 px-6 overflow-hidden">
+      <section className="relative py-16 sm:py-24 px-4 sm:px-6 overflow-hidden">
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent via-primary/[0.03] to-transparent" />
         <div className="relative mx-auto max-w-5xl">
           <motion.div
@@ -1048,7 +1048,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── LIVE DEMO ─────────────────────────────────────── */}
-      <section id="demo" className="relative py-24 px-6">
+      <section id="demo" className="relative py-16 sm:py-24 px-4 sm:px-6">
         <div className="mx-auto max-w-5xl">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -1127,7 +1127,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── EASY INTEGRATION ─────────────────────────────── */}
-      <section className="relative py-24 px-6">
+      <section className="relative py-16 sm:py-24 px-4 sm:px-6">
         <div className="mx-auto max-w-4xl">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -1202,7 +1202,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── PRICING ──────────────────────────────────────── */}
-      <section id="pricing" className="relative py-24 px-6">
+      <section id="pricing" className="relative py-16 sm:py-24 px-4 sm:px-6">
         <div className="mx-auto max-w-5xl">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -1300,7 +1300,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── WORDPRESS PLUGIN ─────────────────────────────── */}
-      <section className="relative py-28 px-6 overflow-hidden">
+      <section className="relative py-16 sm:py-28 px-4 sm:px-6 overflow-hidden">
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent via-primary/[0.04] to-transparent" />
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute left-1/2 top-1/2 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#2271b1]/5 blur-[120px]" />
@@ -1319,7 +1319,7 @@ export default function LandingPage() {
               <WpLogoIcon className="h-4 w-4 text-[#2271b1]" />
               <span className="text-xs font-semibold text-[#2271b1]">WordPress Plugin</span>
             </div>
-            <h2 className="font-heading text-3xl font-bold text-foreground md:text-5xl">
+            <h2 className="font-heading text-2xl font-bold text-foreground sm:text-3xl md:text-5xl">
               No-code protection for{" "}
               <span className="bg-gradient-to-r from-[#2271b1] to-primary bg-clip-text text-transparent">
                 WordPress
@@ -1331,7 +1331,7 @@ export default function LandingPage() {
             </p>
           </motion.div>
 
-          <div className="grid gap-16 lg:grid-cols-2 items-center mb-24">
+          <div className="grid gap-10 sm:gap-16 lg:grid-cols-2 items-center mb-12 sm:mb-24">
 
             <motion.div
               initial={{ opacity: 0, x: -24 }}
@@ -1401,7 +1401,7 @@ export default function LandingPage() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.5 }}
-            className="mb-20 text-center"
+            className="mb-12 sm:mb-20 text-center"
           >
             <p className="mb-6 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
               Works with every major WordPress form plugin
@@ -1467,7 +1467,7 @@ export default function LandingPage() {
       <NewsletterSection />
 
       {/* ── CLOSING CTA ──────────────────────────────────── */}
-      <section className="relative py-24 px-6 overflow-hidden">
+      <section className="relative py-16 sm:py-24 px-4 sm:px-6 overflow-hidden">
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent" />
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute left-1/2 top-1/2 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/10 blur-[100px]" />
@@ -1484,7 +1484,7 @@ export default function LandingPage() {
             <Shield className="h-3.5 w-3.5 text-primary" />
             <span className="text-xs font-medium text-primary">Start protecting your forms today</span>
           </div>
-          <h2 className="font-heading text-4xl font-bold text-foreground md:text-5xl leading-tight">
+          <h2 className="font-heading text-3xl font-bold text-foreground sm:text-4xl md:text-5xl leading-tight">
             Your next signup could be fake.{" "}
             <span className="text-primary">Stop it now.</span>
           </h2>

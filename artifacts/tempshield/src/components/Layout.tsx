@@ -281,7 +281,7 @@ export function Navbar() {
 export function Footer() {
   const siteSettings = useSiteSettings();
   return (
-    <footer className="border-t border-border/50 py-12 px-6">
+    <footer className="border-t border-border/50 py-10 sm:py-12 px-4 sm:px-6">
       <div className="mx-auto max-w-6xl">
         <div className="flex flex-col items-center gap-6 sm:flex-row sm:justify-between">
           <div className="flex items-center gap-2">
