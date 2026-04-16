@@ -65,13 +65,14 @@ export function Navbar() {
           className="flex items-center gap-2 transition-opacity hover:opacity-80"
         >
           {siteSettings.logoUrl ? (
-            <img src={siteSettings.logoUrl} alt={siteSettings.siteTitle} className="h-6 w-auto" />
+            <img
+              src={siteSettings.logoUrl}
+              alt={siteSettings.siteTitle}
+              className="h-8 w-auto max-w-[160px] object-contain"
+            />
           ) : (
             <Shield className="h-6 w-6 text-primary" />
           )}
-          <span className="font-heading text-lg font-bold text-foreground">
-            {siteSettings.siteTitle}
-          </span>
         </Link>
 
         {/* Desktop Nav */}
@@ -286,7 +287,11 @@ export function Footer() {
         <div className="flex flex-col items-center gap-6 sm:flex-row sm:justify-between">
           <div className="flex items-center gap-2">
             {siteSettings.logoUrl ? (
-              <img src={siteSettings.logoUrl} alt={siteSettings.siteTitle} className="h-5 w-auto" />
+              <img
+                src={siteSettings.logoUrl}
+                alt={siteSettings.siteTitle}
+                className="h-5 w-auto"
+              />
             ) : (
               <Shield className="h-5 w-5 text-primary" />
             )}
@@ -331,9 +336,14 @@ export function Footer() {
         </div>
         <Separator className="my-6" />
         <p className="text-center text-xs text-muted-foreground">
-          {siteSettings.footerText
-            ? siteSettings.footerText
-            : <>Built for developers, by developers. &copy; {new Date().getFullYear()}{" "}{siteSettings.siteTitle}.</>}
+          {siteSettings.footerText ? (
+            siteSettings.footerText
+          ) : (
+            <>
+              Built for developers, by developers. &copy;{" "}
+              {new Date().getFullYear()} {siteSettings.siteTitle}.
+            </>
+          )}
         </p>
       </div>
     </footer>
