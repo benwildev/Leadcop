@@ -187,16 +187,7 @@ function SidebarContent({
             <Shield className="w-4 h-4 text-white" />
           </div>
         )}
-        {!collapsed && (
-          <div className="flex-1 min-w-0">
-            <div className="font-heading text-sm font-bold text-foreground leading-tight">
-              {siteSettings.siteTitle}
-            </div>
-            <div className="text-[10px] text-muted-foreground">
-              Admin Portal
-            </div>
-          </div>
-        )}
+        {!collapsed && <div className="flex-1 min-w-0"></div>}
         {!collapsed && (
           <button
             onClick={onToggle}
