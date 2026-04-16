@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import MarkdownEditor from "@/components/MarkdownEditor";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import {
@@ -3043,13 +3044,12 @@ function BlogAdminSection() {
               />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Content (Markdown)</label>
-              <textarea
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Content</label>
+              <MarkdownEditor
                 value={form.content}
-                onChange={e => setForm(f => ({ ...f, content: e.target.value }))}
+                onChange={content => setForm(f => ({ ...f, content }))}
                 placeholder="## Your article content in Markdown..."
-                rows={12}
-                className="w-full px-3 py-2 rounded-lg bg-muted/40 border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 font-mono resize-y"
+                minHeight={440}
               />
             </div>
             <div>
