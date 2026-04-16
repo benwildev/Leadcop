@@ -42,6 +42,7 @@ export function Navbar() {
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const { isDark, toggle } = useTheme();
   const siteSettings = useSiteSettings();
+  const [logoError, setLogoError] = React.useState(false);
 
   const scrollTo = (id: string) => {
     if (location === "/") {
@@ -64,11 +65,12 @@ export function Navbar() {
           href="/"
           className="flex items-center gap-2 transition-opacity hover:opacity-80"
         >
-          {siteSettings.logoUrl ? (
+          {siteSettings.logoUrl && !logoError ? (
             <img
               src={siteSettings.logoUrl}
               alt={siteSettings.siteTitle}
               className="h-8 w-auto max-w-[160px] object-contain"
+              onError={() => setLogoError(true)}
             />
           ) : (
             <Shield className="h-6 w-6 text-primary" />
