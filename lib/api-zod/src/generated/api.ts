@@ -174,6 +174,7 @@ export const AdminGetUsersResponse = zod.object({
       requestCount: zod.number(),
       requestLimit: zod.number(),
       createdAt: zod.string(),
+      bulkJobCount: zod.number().optional(),
     }),
   ),
   total: zod.number(),
@@ -252,4 +253,44 @@ export const AdminGetStatsResponse = zod.object({
     BASIC: zod.number(),
     PRO: zod.number(),
   }),
+  trendData: zod.array(
+    zod.object({
+      date: zod.string(),
+      month: zod.string(),
+      calls: zod.number(),
+      users: zod.number(),
+    }),
+  ),
+});
+
+/**
+ * @summary Get revenue and subscription data (admin only)
+ */
+export const AdminGetRevenueResponse = zod.object({
+  mrr: zod.number(),
+  totalPaidUsers: zod.number(),
+  revenueByPlan: zod.array(
+    zod.object({
+      plan: zod.enum(["FREE", "BASIC", "PRO"]),
+      price: zod.number(),
+      userCount: zod.number(),
+      revenue: zod.number(),
+    }),
+  ),
+  monthlySubs: zod.array(
+    zod.object({
+      month: zod.string(),
+      count: zod.number(),
+    }),
+  ),
+  recent: zod.array(
+    zod.object({
+      id: zod.number(),
+      userName: zod.string(),
+      userEmail: zod.string(),
+      plan: zod.string(),
+      price: zod.number(),
+      approvedAt: zod.string().nullable(),
+    }),
+  ),
 });

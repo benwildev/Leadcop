@@ -69,19 +69,12 @@ export interface CheckEmailRequest {
 export interface CheckEmailResponse {
   isDisposable: boolean;
   domain: string;
-  reputationScore: number;
   requestsRemaining: number;
-  mxValid?: boolean;
-  inboxSupport?: boolean;
 }
 
 export interface UsageEntry {
   id: number;
   endpoint: string;
-  email?: string | null;
-  domain?: string | null;
-  isDisposable?: boolean | null;
-  reputationScore?: number | null;
   timestamp: string;
 }
 
@@ -138,7 +131,6 @@ export interface AdminUser {
   id: number;
   name: string;
   email: string;
-  apiKey: string;
   role: AdminUserRole;
   plan: AdminUserPlan;
   requestCount: number;
@@ -224,27 +216,44 @@ export type AdminStatsUsersByPlan = {
   PRO: number;
 };
 
+export type AdminStatsTrendDataItem = {
+  date: string;
+  month: string;
+  calls: number;
+  users: number;
+};
+
 export interface AdminStats {
   totalUsers: number;
   totalApiCalls: number;
   totalDomains: number;
   pendingUpgradeRequests: number;
   usersByPlan: AdminStatsUsersByPlan;
+  trendData: AdminStatsTrendDataItem[];
 }
 
-export interface AdminRevenueByPlanItem {
-  plan: string;
+export type AdminRevenueByPlanPlan =
+  (typeof AdminRevenueByPlanPlan)[keyof typeof AdminRevenueByPlanPlan];
+
+export const AdminRevenueByPlanPlan = {
+  FREE: "FREE",
+  BASIC: "BASIC",
+  PRO: "PRO",
+} as const;
+
+export interface AdminRevenueByPlan {
+  plan: AdminRevenueByPlanPlan;
   price: number;
   userCount: number;
   revenue: number;
 }
 
-export interface AdminRevenueMonthlyItem {
+export interface AdminMonthlySubs {
   month: string;
   count: number;
 }
 
-export interface AdminRevenueRecentItem {
+export interface AdminRecentSubscription {
   id: number;
   userName: string;
   userEmail: string;
@@ -253,10 +262,10 @@ export interface AdminRevenueRecentItem {
   approvedAt: string | null;
 }
 
-export interface AdminRevenueData {
+export interface AdminRevenue {
   mrr: number;
   totalPaidUsers: number;
-  revenueByPlan: AdminRevenueByPlanItem[];
-  monthlySubs: AdminRevenueMonthlyItem[];
-  recent: AdminRevenueRecentItem[];
+  revenueByPlan: AdminRevenueByPlan[];
+  monthlySubs: AdminMonthlySubs[];
+  recent: AdminRecentSubscription[];
 }

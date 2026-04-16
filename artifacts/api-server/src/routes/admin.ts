@@ -442,12 +442,60 @@ router.get("/stats", requireAdmin, async (req, res) => {
     usersByPlan[row.plan] = Number(row.count);
   }
 
+  // Get API calls trend for last 30 days
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  const apiTrend = await db
+    .select({
+      date: sql<string>`DATE(${apiUsageTable.timestamp})`,
+      count: count(),
+    })
+    .from(apiUsageTable)
+    .where(gte(apiUsageTable.timestamp, thirtyDaysAgo))
+    .groupBy(sql`DATE(${apiUsageTable.timestamp})`)
+    .orderBy(sql`DATE(${apiUsageTable.timestamp})`);
+
+  // Get user signups trend for last 30 days
+  const userTrend = await db
+    .select({
+      date: sql<string>`DATE(${usersTable.createdAt})`,
+      count: count(),
+    })
+    .from(usersTable)
+    .where(gte(usersTable.createdAt, thirtyDaysAgo))
+    .groupBy(sql`DATE(${usersTable.createdAt})`)
+    .orderBy(sql`DATE(${usersTable.createdAt})`);
+
+  // Format trend data for frontend
+  const trendMap: Record<string, { calls: number; users: number }> = {};
+  
+  for (const item of apiTrend) {
+    if (!trendMap[item.date]) trendMap[item.date] = { calls: 0, users: 0 };
+    trendMap[item.date].calls = Number(item.count);
+  }
+  
+  for (const item of userTrend) {
+    if (!trendMap[item.date]) trendMap[item.date] = { calls: 0, users: 0 };
+    trendMap[item.date].users = Number(item.count);
+  }
+
+  const trendData = Object.entries(trendMap)
+    .map(([date, { calls, users }]) => ({
+      date,
+      month: new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      calls,
+      users,
+    }))
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
   res.json({
     totalUsers: Number(totalUsersResult?.count || 0),
     totalApiCalls: Number(totalApiCallsResult?.count || 0),
     totalDomains: Number(totalDomainsResult?.count || 0),
     pendingUpgradeRequests: Number(pendingResult?.count || 0),
     usersByPlan,
+    trendData,
   });
 });
 

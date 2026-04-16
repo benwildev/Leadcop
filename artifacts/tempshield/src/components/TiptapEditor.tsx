@@ -96,7 +96,7 @@ export default function TiptapEditor({
     if (!editor) return;
     const incoming = getInitialHtml(value);
     if (editor.getHTML() !== incoming) {
-      editor.commands.setContent(incoming, false);
+      editor.commands.setContent(incoming);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

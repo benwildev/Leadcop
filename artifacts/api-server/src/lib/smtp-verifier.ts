@@ -56,6 +56,128 @@ export async function verifySmtp(email: string): Promise<SmtpCheckResult> {
   }
 }
 
+/**
+ * Advanced catch-all detection system.
+ * Tests multiple random addresses across MX servers to determine if domain accepts all email addresses.
+ */
+async function detectCatchAll(
+  domain: string,
+  mxRecords: { exchange: string; priority: number }[]
+): Promise<boolean | null> {
+  if (mxRecords.length === 0) return null;
+
+  // Generate multiple random test addresses to increase detection accuracy
+  const testAddresses = [
+    `ts_test_${Math.random().toString(36).slice(2, 8)}@${domain}`,
+    `ts_probe_${Math.random().toString(36).slice(2, 8)}@${domain}`,
+    `noreply_${Math.random().toString(36).slice(2, 8)}@${domain}`,
+  ];
+
+  // Test against first 2 MX servers for redundancy
+  const mxServersToTest = mxRecords.slice(0, 2);
+  const results: Map<string, number> = new Map(); // Address -> code mapping
+
+  for (const testAddr of testAddresses) {
+    for (const mxRecord of mxServersToTest) {
+      const responseCode = await testSingleSmtpRcpt(mxRecord.exchange, testAddr);
+      if (responseCode !== null) {
+        results.set(`${testAddr}_${mxRecord.exchange}`, responseCode);
+      }
+    }
+  }
+
+  if (results.size === 0) return null; // Couldn't test any addresses
+
+  // Analyze results: if ANY random test address got 250/251, it's likely catch-all
+  let acceptedCount = 0;
+  let rejectedCount = 0;
+
+  for (const code of results.values()) {
+    if (code === 250 || code === 251) acceptedCount++;
+    else if (code === 550 || code === 553) rejectedCount++;
+  }
+
+  // Heuristics:
+  // - If majority of tests were accepted (250/251), it's catch-all
+  // - If majority were rejected (550/553), it's NOT catch-all
+  // - If mixed or unclear, return null (unknown)
+  const totalTests = acceptedCount + rejectedCount;
+  if (totalTests === 0) return null;
+
+  const acceptanceRate = acceptedCount / totalTests;
+  if (acceptanceRate >= 0.7) return true;   // 70%+ acceptance = catch-all
+  if (acceptanceRate <= 0.3) return false;  // 70%+ rejection = not catch-all
+  return null;                               // Unclear results
+}
+
+/**
+ * Low-level SMTP test: try RCPT TO for a single address and return response code.
+ */
+function testSingleSmtpRcpt(host: string, testEmail: string): Promise<number | null> {
+  return new Promise((resolve) => {
+    const socket = net.createConnection(25, host);
+    socket.setTimeout(8000);
+
+    let buffer = "";
+    let stage = 0;
+    let responseCode: number | null = null;
+
+    const cleanup = () => {
+      socket.removeAllListeners();
+      socket.destroy();
+    };
+
+    const sendCommand = (cmd: string) => {
+      socket.write(cmd + "\r\n");
+    };
+
+    const finish = (code: number | null) => {
+      responseCode = code;
+      cleanup();
+      resolve(code);
+    };
+
+    const processResponse = () => {
+      const parsed = readSmtpResponse(buffer);
+      if (parsed.code === 0) return;
+
+      buffer = parsed.remaining;
+      const code = parsed.code;
+
+      if (stage === 0 && code === 220) {
+        sendCommand("EHLO leadcop.io");
+        stage = 1;
+      } else if (stage === 1 && code === 250) {
+        sendCommand("MAIL FROM:<verify@leadcop.io>");
+        stage = 2;
+      } else if (stage === 2 && code === 250) {
+        sendCommand(`RCPT TO:<${testEmail}>`);
+        stage = 3;
+      } else if (stage === 3) {
+        sendCommand("QUIT");
+        finish(code);
+      }
+
+      if (buffer.length > 0) processResponse();
+    };
+
+    socket.on("data", (data) => {
+      buffer += data.toString();
+      processResponse();
+    });
+
+    socket.on("error", () => {
+      cleanup();
+      resolve(null);
+    });
+
+    socket.on("timeout", () => {
+      cleanup();
+      resolve(null);
+    });
+  });
+}
+
 async function performHandshakeWithRetry(
   records: { exchange: string; priority: number }[],
   email: string,
@@ -74,9 +196,13 @@ async function performHandshakeWithRetry(
       result.canConnect = mxResult.canConnect;
       result.mxAcceptsMail = mxResult.mxAcceptsMail;
       result.isDeliverable = mxResult.isDeliverable;
-      result.isCatchAll = mxResult.isCatchAll;
       result.hasInboxFull = mxResult.hasInboxFull;
       result.isDisabled = mxResult.isDisabled;
+      
+      // Use advanced catch-all detection system if initial test was inconclusive
+      const catchAllResult = await detectCatchAll(domain, records);
+      result.isCatchAll = catchAllResult ?? mxResult.isCatchAll;
+      
       return result;
     }
 
@@ -177,7 +303,7 @@ async function attemptHandshake(
 
   return new Promise((resolve) => {
     const socket = net.createConnection(25, host);
-    socket.setTimeout(5000);
+    socket.setTimeout(10000); // Increased timeout to handle slow servers
 
     let buffer = "";
     let stage = 0;
@@ -188,6 +314,7 @@ async function attemptHandshake(
     };
 
     const sendCommand = (cmd: string) => {
+      socket.setTimeout(10000); // Reset timeout for each command
       socket.write(cmd + "\r\n");
     };
 

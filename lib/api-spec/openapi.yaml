@@ -373,6 +373,25 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /admin/revenue:
+    get:
+      operationId: adminGetRevenue
+      tags: [admin]
+      summary: Get revenue and subscription data (admin only)
+      responses:
+        "200":
+          description: Revenue information
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminRevenue"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -603,6 +622,8 @@ components:
           type: integer
         createdAt:
           type: string
+        bulkJobCount:
+          type: integer
       required:
         - id
         - name
@@ -716,9 +737,107 @@ components:
             - FREE
             - BASIC
             - PRO
+        trendData:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+              month:
+                type: string
+              calls:
+                type: integer
+              users:
+                type: integer
+            required:
+              - date
+              - month
+              - calls
+              - users
       required:
         - totalUsers
         - totalApiCalls
         - totalDomains
         - pendingUpgradeRequests
         - usersByPlan
+        - trendData
+
+    AdminRevenueByPlan:
+      type: object
+      properties:
+        plan:
+          type: string
+          enum: [FREE, BASIC, PRO]
+        price:
+          type: number
+        userCount:
+          type: integer
+        revenue:
+          type: number
+      required:
+        - plan
+        - price
+        - userCount
+        - revenue
+
+    AdminMonthlySubs:
+      type: object
+      properties:
+        month:
+          type: string
+        count:
+          type: integer
+      required:
+        - month
+        - count
+
+    AdminRecentSubscription:
+      type: object
+      properties:
+        id:
+          type: integer
+        userName:
+          type: string
+        userEmail:
+          type: string
+        plan:
+          type: string
+        price:
+          type: number
+        approvedAt:
+          type: string
+          nullable: true
+      required:
+        - id
+        - userName
+        - userEmail
+        - plan
+        - price
+        - approvedAt
+
+    AdminRevenue:
+      type: object
+      properties:
+        mrr:
+          type: number
+        totalPaidUsers:
+          type: integer
+        revenueByPlan:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminRevenueByPlan"
+        monthlySubs:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminMonthlySubs"
+        recent:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminRecentSubscription"
+      required:
+        - mrr
+        - totalPaidUsers
+        - revenueByPlan
+        - monthlySubs
+        - recent

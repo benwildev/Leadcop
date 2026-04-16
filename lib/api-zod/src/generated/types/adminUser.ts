@@ -17,4 +17,5 @@ export interface AdminUser {
   requestCount: number;
   requestLimit: number;
   createdAt: string;
+  bulkJobCount?: number;
 }

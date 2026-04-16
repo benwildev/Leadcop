@@ -1,7 +1,7 @@
 import { db, usersTable } from "./src/index.js";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
-import { crypto } from "node:crypto";
+import { randomUUID } from "node:crypto";
 
 async function setup() {
   const email = "admin@leadcop.io";
@@ -27,7 +27,7 @@ async function setup() {
       name: "Admin",
       email: email,
       password: hashedPassword,
-      apiKey: crypto.randomUUID(),
+      apiKey: randomUUID(),
       role: "ADMIN",
       plan: "PRO",
       requestLimit: 10000

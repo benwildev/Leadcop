@@ -17,7 +17,7 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
-  AdminRevenueData,
+  AdminRevenue,
   AdminStats,
   AdminUsersResponse,
   ApiKeyResponse,
@@ -1320,7 +1320,7 @@ export function useAdminGetStats<
 }
 
 /**
- * @summary Get revenue data (admin only)
+ * @summary Get revenue and subscription data (admin only)
  */
 export const getAdminGetRevenueUrl = () => {
   return `/api/admin/revenue`;
@@ -1328,8 +1328,8 @@ export const getAdminGetRevenueUrl = () => {
 
 export const adminGetRevenue = async (
   options?: RequestInit,
-): Promise<AdminRevenueData> => {
-  return customFetch<AdminRevenueData>(getAdminGetRevenueUrl(), {
+): Promise<AdminRevenue> => {
+  return customFetch<AdminRevenue>(getAdminGetRevenueUrl(), {
     ...options,
     method: "GET",
   });
@@ -1371,8 +1371,9 @@ export type AdminGetRevenueQueryResult = NonNullable<
 export type AdminGetRevenueQueryError = ErrorType<ErrorResponse>;
 
 /**
- * @summary Get revenue data (admin only)
+ * @summary Get revenue and subscription data (admin only)
  */
+
 export function useAdminGetRevenue<
   TData = Awaited<ReturnType<typeof adminGetRevenue>>,
   TError = ErrorType<ErrorResponse>,

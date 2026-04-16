@@ -220,6 +220,38 @@ export default function VerificationModal({ isOpen, onClose, result, email }: Ve
                 </div>
               </div>
 
+              {/* Catch-All Warning */}
+              {result?.isCatchAll === true && (
+                <div className="rounded-lg border-2 border-red-500/30 bg-red-500/5 px-4 py-4">
+                  <div className="flex items-start gap-3">
+                    <div className="h-6 w-6 rounded-full bg-red-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                      <span className="text-xs font-bold text-red-500">!</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-red-500 mb-1">This email has catch-all enabled</p>
+                      <p className="text-xs text-red-400 leading-relaxed">
+                        This domain accepts all emails, even non-existent addresses. This means any email format is valid for this domain. Verify the actual mailbox before using it for campaigns.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Catch-All Unknown Explanation */}
+              {result?.isCatchAll === null && (
+                <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3">
+                  <div className="flex items-start gap-2">
+                    <span className="text-xs font-bold text-amber-500 mt-0.5">?</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-amber-600 mb-1">Catch-all Status Unknown</p>
+                      <p className="text-xs text-amber-500">
+                        We couldn't confirm if this domain has catch-all enabled. This could mean the mail server didn't respond to our test, or it uses advanced filtering. Assume it might accept any address format from this domain.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Detailed Checks */}
               <div>
                 <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Detailed Checks</h4>

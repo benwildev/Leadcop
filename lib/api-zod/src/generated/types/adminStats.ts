@@ -5,6 +5,7 @@
  * TempShield API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { AdminStatsTrendDataItem } from "./adminStatsTrendDataItem";
 import type { AdminStatsUsersByPlan } from "./adminStatsUsersByPlan";
 
 export interface AdminStats {
@@ -13,4 +14,5 @@ export interface AdminStats {
   totalDomains: number;
   pendingUpgradeRequests: number;
   usersByPlan: AdminStatsUsersByPlan;
+  trendData: AdminStatsTrendDataItem[];
 }

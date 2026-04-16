@@ -6,7 +6,13 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./adminMonthlySubs";
+export * from "./adminRecentSubscription";
+export * from "./adminRevenue";
+export * from "./adminRevenueByPlan";
+export * from "./adminRevenueByPlanPlan";
 export * from "./adminStats";
+export * from "./adminStatsTrendDataItem";
 export * from "./adminStatsUsersByPlan";
 export * from "./adminUser";
 export * from "./adminUserPlan";

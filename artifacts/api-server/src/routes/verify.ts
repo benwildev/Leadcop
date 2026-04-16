@@ -103,7 +103,7 @@ const freeVerifySchema = z.object({
   email: z.string().email(),
 });
 
-// ── Domain-level SMTP result cache (5 min TTL) ────────────────────────────────
+// ── Exact-email SMTP result cache (5 min TTL) ─────────────────────────────────
 interface CachedSmtp {
   result: Awaited<ReturnType<typeof verifySmtp>>;
   mxValid: boolean;
@@ -114,14 +114,15 @@ const SMTP_CACHE_TTL_MS = 5 * 60 * 1000;
 
 function pruneSmtpCache() {
   const now = Date.now();
-  for (const [k, v] of smtpCache) {
-    if (v.expiresAt < now) smtpCache.delete(k);
+  for (const [cacheKey, value] of smtpCache) {
+    if (value.expiresAt < now) smtpCache.delete(cacheKey);
   }
 }
 
 async function cachedSmtpCheck(domain: string, email: string): Promise<{ smtpResult: Awaited<ReturnType<typeof verifySmtp>>; mxValid: boolean }> {
   pruneSmtpCache();
-  const hit = smtpCache.get(domain);
+  const cacheKey = email.trim().toLowerCase();
+  const hit = smtpCache.get(cacheKey);
   if (hit && hit.expiresAt > Date.now()) {
     return { smtpResult: hit.result, mxValid: hit.mxValid };
   }
@@ -129,7 +130,7 @@ async function cachedSmtpCheck(domain: string, email: string): Promise<{ smtpRes
     checkMx(domain),
     verifySmtp(email),
   ]);
-  smtpCache.set(domain, { result: smtpResult, mxValid, expiresAt: Date.now() + SMTP_CACHE_TTL_MS });
+  smtpCache.set(cacheKey, { result: smtpResult, mxValid, expiresAt: Date.now() + SMTP_CACHE_TTL_MS });
   return { smtpResult, mxValid };
 }
 
