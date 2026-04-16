@@ -69,7 +69,7 @@ export function Navbar() {
             <img
               src={siteSettings.logoUrl}
               alt={siteSettings.siteTitle}
-              className="h-8 w-auto max-w-[160px] object-contain invert dark:invert-0"
+              className="h-36 w-auto max-w-[160px] object-contain invert dark:invert-0"
               onError={() => setLogoError(true)}
             />
           ) : (

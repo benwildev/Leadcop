@@ -4,10 +4,13 @@ import { useAuth } from "@/hooks/use-auth";
 import { Shield, ArrowRight, Loader2, Eye, EyeOff, ShieldAlert } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import AuthRightPanel from "@/components/AuthRightPanel";
+import { useSiteSettings } from "@/hooks/use-site-settings";
 import { isValidEmail, extractDomain, KNOWN_DISPOSABLE_DOMAINS } from "@/utils/email-validation";
 
 export default function RegisterPage() {
   const { register } = useAuth();
+  const siteSettings = useSiteSettings();
+  const [logoError, setLogoError] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -92,10 +95,19 @@ export default function RegisterPage() {
         className="relative flex flex-col justify-center w-full lg:w-[480px] xl:w-[520px] flex-shrink-0 bg-white px-10 sm:px-16 py-12 z-10"
       >
         <div className="mb-10">
-          <Link href="/">
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center shadow-lg shadow-purple-500/30 cursor-pointer hover:opacity-90 transition-opacity">
-              <Shield className="w-6 h-6 text-white" />
-            </div>
+          <Link href="/" className="inline-block hover:opacity-80 transition-opacity">
+            {siteSettings.logoUrl && !logoError ? (
+              <img
+                src={siteSettings.logoUrl}
+                alt={siteSettings.siteTitle}
+                className="h-10 w-auto max-w-[180px] object-contain invert"
+                onError={() => setLogoError(true)}
+              />
+            ) : (
+              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center shadow-lg shadow-purple-500/30">
+                <Shield className="w-6 h-6 text-white" />
+              </div>
+            )}
           </Link>
         </div>
 

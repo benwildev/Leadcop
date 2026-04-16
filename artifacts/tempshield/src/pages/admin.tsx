@@ -30,6 +30,7 @@ import {
 } from "recharts";
 import { motion, AnimatePresence } from "framer-motion";
 import { format, parseISO } from "date-fns";
+import { useSiteSettings } from "@/hooks/use-site-settings";
 
 type Section = "overview" | "users" | "subscriptions" | "plan-config" | "api-keys" | "domains" | "payment" | "email" | "revenue" | "branding" | "seo" | "support" | "blog" | "newsletter";
 
@@ -88,16 +89,28 @@ function SidebarContent({ active, onNav, collapsed, onToggle, onClose }: {
   onToggle: () => void;
   onClose: () => void;
 }) {
+  const siteSettings = useSiteSettings();
+  const [logoError, setLogoError] = React.useState(false);
+
   return (
     <div className="flex flex-col h-full bg-card border-r border-border">
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-4 border-b border-border">
-        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center flex-shrink-0 shadow-sm">
-          <Shield className="w-4 h-4 text-white" />
-        </div>
+        {siteSettings.logoUrl && !logoError ? (
+          <img
+            src={siteSettings.logoUrl}
+            alt={siteSettings.siteTitle}
+            className={`h-8 w-auto max-w-[120px] object-contain invert dark:invert-0 flex-shrink-0 ${collapsed ? "mx-auto" : ""}`}
+            onError={() => setLogoError(true)}
+          />
+        ) : (
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center flex-shrink-0 shadow-sm">
+            <Shield className="w-4 h-4 text-white" />
+          </div>
+        )}
         {!collapsed && (
           <div className="flex-1 min-w-0">
-            <div className="font-heading text-sm font-bold text-foreground leading-tight">LeadCop</div>
+            <div className="font-heading text-sm font-bold text-foreground leading-tight">{siteSettings.siteTitle}</div>
             <div className="text-[10px] text-muted-foreground">Admin Portal</div>
           </div>
         )}

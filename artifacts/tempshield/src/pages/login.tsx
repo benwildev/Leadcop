@@ -4,9 +4,12 @@ import { useAuth } from "@/hooks/use-auth";
 import { Shield, ArrowRight, Loader2, Eye, EyeOff } from "lucide-react";
 import { motion } from "framer-motion";
 import AuthRightPanel from "@/components/AuthRightPanel";
+import { useSiteSettings } from "@/hooks/use-site-settings";
 
 export default function LoginPage() {
   const { login } = useAuth();
+  const siteSettings = useSiteSettings();
+  const [logoError, setLogoError] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -36,10 +39,19 @@ export default function LoginPage() {
       >
         {/* Logo — links home */}
         <div className="mb-10">
-          <Link href="/">
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center shadow-lg shadow-purple-500/30 cursor-pointer hover:opacity-90 transition-opacity">
-              <Shield className="w-6 h-6 text-white" />
-            </div>
+          <Link href="/" className="inline-block hover:opacity-80 transition-opacity">
+            {siteSettings.logoUrl && !logoError ? (
+              <img
+                src={siteSettings.logoUrl}
+                alt={siteSettings.siteTitle}
+                className="h-10 w-auto max-w-[180px] object-contain invert"
+                onError={() => setLogoError(true)}
+              />
+            ) : (
+              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center shadow-lg shadow-purple-500/30">
+                <Shield className="w-6 h-6 text-white" />
+              </div>
+            )}
           </Link>
         </div>
 
