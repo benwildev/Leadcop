@@ -69,7 +69,7 @@ export function Navbar() {
             <img
               src={siteSettings.logoUrl}
               alt={siteSettings.siteTitle}
-              className="h-8 w-auto max-w-[160px] object-contain"
+              className="h-8 w-auto max-w-[160px] object-contain invert dark:invert-0"
               onError={() => setLogoError(true)}
             />
           ) : (
@@ -292,7 +292,7 @@ export function Footer() {
               <img
                 src={siteSettings.logoUrl}
                 alt={siteSettings.siteTitle}
-                className="h-5 w-auto"
+                className="h-5 w-auto invert dark:invert-0"
               />
             ) : (
               <Shield className="h-5 w-5 text-primary" />
