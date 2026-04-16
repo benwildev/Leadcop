@@ -170,22 +170,51 @@ function SidebarContent({
 }) {
   const siteSettings = useSiteSettings();
   const [logoError, setLogoError] = React.useState(false);
+  const [faviconError, setFaviconError] = React.useState(false);
+  const [isDark, setIsDark] = React.useState(
+    () => typeof document !== "undefined" && document.documentElement.classList.contains("dark")
+  );
+  React.useEffect(() => {
+    const observer = new MutationObserver(() =>
+      setIsDark(document.documentElement.classList.contains("dark"))
+    );
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
+
+  const logoSrc = isDark ? (siteSettings.logoDarkUrl ?? siteSettings.logoUrl) : siteSettings.logoUrl;
+  const iconSrc = isDark ? (siteSettings.faviconDarkUrl ?? siteSettings.faviconUrl) : siteSettings.faviconUrl;
 
   return (
     <div className="flex flex-col h-full bg-card border-r border-border">
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-4 border-b border-border">
-        {siteSettings.logoUrl && !logoError ? (
-          <img
-            src={siteSettings.logoUrl}
-            alt={siteSettings.siteTitle}
-            className={`h-8 w-auto max-w-[120px] object-contain invert dark:invert-0 flex-shrink-0 ${collapsed ? "mx-auto" : ""}`}
-            onError={() => setLogoError(true)}
-          />
+        {collapsed ? (
+          iconSrc && !faviconError ? (
+            <img
+              src={iconSrc}
+              alt={siteSettings.siteTitle}
+              className="h-8 w-8 object-contain rounded-md mx-auto flex-shrink-0"
+              onError={() => setFaviconError(true)}
+            />
+          ) : (
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center flex-shrink-0 shadow-sm mx-auto">
+              <Shield className="w-4 h-4 text-white" />
+            </div>
+          )
         ) : (
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center flex-shrink-0 shadow-sm">
-            <Shield className="w-4 h-4 text-white" />
-          </div>
+          logoSrc && !logoError ? (
+            <img
+              src={logoSrc}
+              alt={siteSettings.siteTitle}
+              className="h-8 w-auto max-w-[120px] object-contain flex-shrink-0"
+              onError={() => setLogoError(true)}
+            />
+          ) : (
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center flex-shrink-0 shadow-sm">
+              <Shield className="w-4 h-4 text-white" />
+            </div>
+          )
         )}
         {!collapsed && <div className="flex-1 min-w-0"></div>}
         {!collapsed && (
@@ -3316,7 +3345,9 @@ interface SiteSettingsData {
   siteTitle: string;
   tagline: string;
   logoUrl: string | null;
+  logoDarkUrl: string | null;
   faviconUrl: string | null;
+  faviconDarkUrl: string | null;
   globalMetaTitle: string;
   globalMetaDescription: string;
   footerText: string | null;
@@ -3333,7 +3364,9 @@ function BrandingSection() {
     siteTitle: "LeadCop",
     tagline: "Block Fake Emails. Protect Your Platform.",
     logoUrl: null,
+    logoDarkUrl: null,
     faviconUrl: null,
+    faviconDarkUrl: null,
     globalMetaTitle: "LeadCop — Disposable Email Detection API",
     globalMetaDescription:
       "Industry-leading disposable email detection API. Real-time verification with 99.9% accuracy.",
@@ -3351,7 +3384,9 @@ function BrandingSection() {
         siteTitle: data.siteTitle,
         tagline: data.tagline,
         logoUrl: data.logoUrl,
+        logoDarkUrl: data.logoDarkUrl ?? null,
         faviconUrl: data.faviconUrl,
+        faviconDarkUrl: data.faviconDarkUrl ?? null,
         globalMetaTitle: data.globalMetaTitle,
         globalMetaDescription: data.globalMetaDescription,
         footerText: data.footerText,
@@ -3450,19 +3485,42 @@ function BrandingSection() {
               "Short hero tagline (optional)",
               true,
             )}
-            <CloudinaryUpload
-              label="Logo"
-              value={form.logoUrl}
-              onChange={(url) => setForm((f) => ({ ...f, logoUrl: url }))}
-              hint="Replaces the default Shield icon in the navbar — PNG, SVG or WebP recommended"
-            />
-            <CloudinaryUpload
-              label="Favicon"
-              value={form.faviconUrl}
-              onChange={(url) => setForm((f) => ({ ...f, faviconUrl: url }))}
-              accept="image/png,image/jpeg,image/svg+xml,image/x-icon,image/vnd.microsoft.icon"
-              hint="Browser tab icon — ICO, PNG or SVG, ideally 32×32 or 64×64 px"
-            />
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Logo</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <CloudinaryUpload
+                  label="Logo — Light mode"
+                  value={form.logoUrl}
+                  onChange={(url) => setForm((f) => ({ ...f, logoUrl: url }))}
+                  hint="Used on light backgrounds (navbar, login, footer)"
+                />
+                <CloudinaryUpload
+                  label="Logo — Dark mode"
+                  value={form.logoDarkUrl}
+                  onChange={(url) => setForm((f) => ({ ...f, logoDarkUrl: url }))}
+                  hint="Used on dark backgrounds — leave empty to reuse the light logo"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Icon / Favicon</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <CloudinaryUpload
+                  label="Icon — Light mode"
+                  value={form.faviconUrl}
+                  onChange={(url) => setForm((f) => ({ ...f, faviconUrl: url }))}
+                  accept="image/png,image/jpeg,image/svg+xml,image/x-icon,image/vnd.microsoft.icon"
+                  hint="Browser tab favicon + collapsed sidebar icon (light)"
+                />
+                <CloudinaryUpload
+                  label="Icon — Dark mode"
+                  value={form.faviconDarkUrl}
+                  onChange={(url) => setForm((f) => ({ ...f, faviconDarkUrl: url }))}
+                  accept="image/png,image/jpeg,image/svg+xml,image/x-icon,image/vnd.microsoft.icon"
+                  hint="Collapsed sidebar icon in dark mode — leave empty to reuse light icon"
+                />
+              </div>
+            </div>
           </motion.div>
 
           <motion.div

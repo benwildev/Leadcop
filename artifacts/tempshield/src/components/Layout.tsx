@@ -44,6 +44,10 @@ export function Navbar() {
   const siteSettings = useSiteSettings();
   const [logoError, setLogoError] = React.useState(false);
 
+  const logoSrc = isDark
+    ? (siteSettings.logoDarkUrl ?? siteSettings.logoUrl)
+    : siteSettings.logoUrl;
+
   const scrollTo = (id: string) => {
     if (location === "/") {
       const el = document.getElementById(id);
@@ -65,11 +69,11 @@ export function Navbar() {
           href="/"
           className="flex items-center gap-2 transition-opacity hover:opacity-80"
         >
-          {siteSettings.logoUrl && !logoError ? (
+          {logoSrc && !logoError ? (
             <img
-              src={siteSettings.logoUrl}
+              src={logoSrc}
               alt={siteSettings.siteTitle}
-              className="h-36 w-auto max-w-[160px] object-contain invert dark:invert-0"
+              className="h-8 w-auto max-w-[160px] object-contain"
               onError={() => setLogoError(true)}
             />
           ) : (
@@ -283,16 +287,20 @@ export function Navbar() {
 
 export function Footer() {
   const siteSettings = useSiteSettings();
+  const { isDark } = useTheme();
+  const footerLogoSrc = isDark
+    ? (siteSettings.logoDarkUrl ?? siteSettings.logoUrl)
+    : siteSettings.logoUrl;
   return (
     <footer className="border-t border-border/50 py-10 sm:py-12 px-4 sm:px-6">
       <div className="mx-auto max-w-6xl">
         <div className="flex flex-col items-center gap-6 sm:flex-row sm:justify-between">
           <div className="flex items-center gap-2">
-            {siteSettings.logoUrl ? (
+            {footerLogoSrc ? (
               <img
-                src={siteSettings.logoUrl}
+                src={footerLogoSrc}
                 alt={siteSettings.siteTitle}
-                className="h-5 w-auto invert dark:invert-0"
+                className="h-5 w-auto object-contain"
               />
             ) : (
               <Shield className="h-5 w-5 text-primary" />

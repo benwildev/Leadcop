@@ -100,7 +100,7 @@ export default function RegisterPage() {
               <img
                 src={siteSettings.logoUrl}
                 alt={siteSettings.siteTitle}
-                className="h-10 w-auto max-w-[180px] object-contain invert"
+                className="h-10 w-auto max-w-[180px] object-contain"
                 onError={() => setLogoError(true)}
               />
             ) : (
