@@ -1,6 +1,5 @@
 import React, { useEffect, useCallback } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
-import { BubbleMenu } from "@tiptap/extension-bubble-menu";
 import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
@@ -42,15 +41,13 @@ function getInitialHtml(value: string): string {
   return marked.parse(value) as string;
 }
 
-type ToolbarItem =
-  | { type: "separator" }
-  | {
-      type: "button";
-      icon: React.ElementType;
-      label: string;
-      action: () => void;
-      isActive?: () => boolean;
-    };
+type ToolbarButton = {
+  type: "button";
+  icon: React.ElementType;
+  label: string;
+  action: () => void;
+  isActive?: () => boolean;
+};
 
 export default function TiptapEditor({
   value,
@@ -64,6 +61,10 @@ export default function TiptapEditor({
         heading: { levels: [1, 2, 3, 4] },
         bulletList: { keepMarks: true, keepAttributes: false },
         orderedList: { keepMarks: true, keepAttributes: false },
+        // Disable StarterKit's bundled link/underline so our standalone
+        // extensions (with richer config) don't cause duplicates
+        link: false,
+        underline: false,
       }),
       Underline,
       Highlight.configure({ multicolor: false }),
@@ -90,12 +91,14 @@ export default function TiptapEditor({
     },
   });
 
+  // Sync initial value once on mount only
   useEffect(() => {
     if (!editor) return;
     const incoming = getInitialHtml(value);
     if (editor.getHTML() !== incoming) {
       editor.commands.setContent(incoming, false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const addImage = useCallback(() => {
@@ -106,7 +109,7 @@ export default function TiptapEditor({
   const setLink = useCallback(() => {
     if (!editor) return;
     const prev = editor.getAttributes("link").href;
-    const url = window.prompt("URL", prev);
+    const url = window.prompt("URL", prev ?? "");
     if (url === null) return;
     if (url === "") {
       editor.chain().focus().extendMarkRange("link").unsetLink().run();
@@ -122,10 +125,10 @@ export default function TiptapEditor({
 
   if (!editor) return null;
 
-  const toolbarGroups: ToolbarItem[][] = [
+  const toolbarGroups: ToolbarButton[][] = [
     [
-      { type: "button", icon: Undo, label: "Undo (Ctrl+Z)", action: () => editor.chain().focus().undo().run(), isActive: () => false },
-      { type: "button", icon: Redo, label: "Redo (Ctrl+Y)", action: () => editor.chain().focus().redo().run(), isActive: () => false },
+      { type: "button", icon: Undo, label: "Undo (Ctrl+Z)", action: () => editor.chain().focus().undo().run() },
+      { type: "button", icon: Redo, label: "Redo (Ctrl+Y)", action: () => editor.chain().focus().redo().run() },
     ],
     [
       { type: "button", icon: Bold, label: "Bold (Ctrl+B)", action: () => editor.chain().focus().toggleBold().run(), isActive: () => editor.isActive("bold") },
@@ -155,9 +158,9 @@ export default function TiptapEditor({
     ],
     [
       { type: "button", icon: LinkIcon, label: "Link", action: setLink, isActive: () => editor.isActive("link") },
-      { type: "button", icon: ImageIcon, label: "Insert Image", action: addImage, isActive: () => false },
-      { type: "button", icon: TableIcon, label: "Insert Table", action: addTable, isActive: () => false },
-      { type: "button", icon: Minus, label: "Horizontal Rule", action: () => editor.chain().focus().setHorizontalRule().run(), isActive: () => false },
+      { type: "button", icon: ImageIcon, label: "Insert Image", action: addImage },
+      { type: "button", icon: TableIcon, label: "Insert Table", action: addTable },
+      { type: "button", icon: Minus, label: "Horizontal Rule", action: () => editor.chain().focus().setHorizontalRule().run() },
     ],
   ];
 
@@ -167,13 +170,12 @@ export default function TiptapEditor({
   return (
     <div className="rounded-xl border border-border overflow-hidden bg-background shadow-sm">
 
-      {/* ── Toolbar ─────────────────────────────── */}
+      {/* ── Toolbar ──────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-0.5 border-b border-border bg-muted/30 px-2 py-1.5">
         {toolbarGroups.map((group, gi) => (
           <React.Fragment key={gi}>
             {gi > 0 && <div className="mx-1 h-5 w-px bg-border/60 shrink-0" />}
             {group.map((item) => {
-              if (item.type === "separator") return <div key="sep" className="mx-1 h-5 w-px bg-border/60" />;
               const active = item.isActive?.() ?? false;
               return (
                 <button
@@ -195,51 +197,19 @@ export default function TiptapEditor({
         ))}
       </div>
 
-      {/* ── Bubble menu (appears on text selection) ─ */}
-      <BubbleMenu
-        editor={editor}
-        tippyOptions={{ duration: 150, placement: "top" }}
-        className="flex items-center gap-0.5 rounded-lg border border-border bg-background/95 p-1 shadow-lg backdrop-blur-sm"
-      >
-        {[
-          { icon: Bold, label: "Bold", action: () => editor.chain().focus().toggleBold().run(), active: editor.isActive("bold") },
-          { icon: Italic, label: "Italic", action: () => editor.chain().focus().toggleItalic().run(), active: editor.isActive("italic") },
-          { icon: UnderlineIcon, label: "Underline", action: () => editor.chain().focus().toggleUnderline().run(), active: editor.isActive("underline") },
-          { icon: Strikethrough, label: "Strike", action: () => editor.chain().focus().toggleStrike().run(), active: editor.isActive("strike") },
-          { icon: Highlighter, label: "Highlight", action: () => editor.chain().focus().toggleHighlight().run(), active: editor.isActive("highlight") },
-          { icon: LinkIcon, label: "Link", action: setLink, active: editor.isActive("link") },
-          { icon: Code, label: "Code", action: () => editor.chain().focus().toggleCode().run(), active: editor.isActive("code") },
-        ].map(({ icon: Icon, label, action, active }) => (
-          <button
-            key={label}
-            type="button"
-            title={label}
-            onMouseDown={(e) => { e.preventDefault(); action(); }}
-            className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors ${
-              active
-                ? "bg-primary/15 text-primary"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground"
-            }`}
-          >
-            <Icon className="h-3.5 w-3.5" />
-          </button>
-        ))}
-      </BubbleMenu>
-
-      {/* ── Editor content area ──────────────────── */}
+      {/* ── Editor content area ───────────────────────── */}
       <EditorContent
         editor={editor}
         className="tiptap-editor px-6 py-4 text-foreground"
         style={{ minHeight }}
       />
 
-      {/* ── Status bar ──────────────────────────── */}
+      {/* ── Status bar ───────────────────────────────── */}
       <div className="flex items-center justify-between border-t border-border/50 bg-muted/20 px-4 py-1.5">
         <span className="text-[10px] text-muted-foreground">
           {wordCount} words &nbsp;·&nbsp; {charCount} characters
         </span>
         <span className="text-[10px] text-muted-foreground">
-          Rich Text &nbsp;·&nbsp;
           <kbd className="rounded bg-muted px-1 py-0.5 text-[9px]">Ctrl+B</kbd> Bold &nbsp;
           <kbd className="rounded bg-muted px-1 py-0.5 text-[9px]">Ctrl+I</kbd> Italic &nbsp;
           <kbd className="rounded bg-muted px-1 py-0.5 text-[9px]">Ctrl+Z</kbd> Undo
