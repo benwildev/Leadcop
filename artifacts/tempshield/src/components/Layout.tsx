@@ -326,14 +326,6 @@ export function Footer() {
             >
               Blog
             </Link>
-            <a
-              href="https://github.com/disposable-email-domains/disposable-email-domains"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="transition-colors hover:text-foreground"
-            >
-              GitHub
-            </a>
           </div>
         </div>
         <Separator className="my-6" />

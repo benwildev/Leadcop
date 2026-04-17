@@ -190,38 +190,34 @@ function SidebarContent({
               <Shield className="w-4 h-4 text-white" />
             </div>
           )
-        ) : (
-          /* Expanded: show full logo */
-          siteSettings.logoUrl && !logoError ? (
-            <img
-              src={siteSettings.logoUrl}
-              alt={siteSettings.siteTitle}
-              className="h-8 w-auto max-w-[120px] object-contain invert dark:invert-0 flex-shrink-0"
-              onError={() => setLogoError(true)}
-            />
-          ) : (
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center flex-shrink-0 shadow-sm">
-              <Shield className="w-4 h-4 text-white" />
+        ) : /* Expanded: logo + title + collapse button */
+        (
+          <>
+            {siteSettings.logoUrl && !logoError ? (
+              <img
+                src={siteSettings.logoUrl}
+                alt={siteSettings.siteTitle}
+                className="h-8 w-auto max-w-[140px] object-contain flex-shrink-0"
+                onError={() => setLogoError(true)}
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center flex-shrink-0 shadow-sm">
+                <Shield className="w-4 h-4 text-white" />
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="font-heading text-sm font-bold text-foreground leading-tight truncate">
+                {siteSettings.siteTitle}
+              </div>
+              <div className="text-[10px] text-muted-foreground">Admin Portal</div>
             </div>
-          )
-        )}
-        {!collapsed && (
-          <div className="flex-1 min-w-0">
-            <div className="font-heading text-sm font-bold text-foreground leading-tight">
-              {siteSettings.siteTitle}
-            </div>
-            <div className="text-[10px] text-muted-foreground">
-              Admin Portal
-            </div>
-          </div>
-        )}
-        {!collapsed && (
-          <button
-            onClick={onToggle}
-            className="hidden lg:flex text-muted-foreground hover:text-foreground transition-colors p-1 rounded-lg hover:bg-muted/50"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
+            <button
+              onClick={onToggle}
+              className="hidden lg:flex ml-auto text-muted-foreground hover:text-foreground transition-colors p-1 rounded-lg hover:bg-muted/50 flex-shrink-0"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+          </>
         )}
       </div>
 
@@ -5326,7 +5322,7 @@ export default function AdminPage() {
         </div>
 
         {/* Section content */}
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        <div className={`${collapsed ? "max-w-7xl" : "max-w-5xl"} mx-auto px-4 sm:px-6 py-6 sm:py-8 transition-all duration-300`}>
           <AnimatePresence mode="wait">
             <motion.div
               key={section}
