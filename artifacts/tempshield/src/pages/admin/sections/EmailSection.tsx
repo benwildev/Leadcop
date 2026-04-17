@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { format, parseISO } from "date-fns";
 import { Loader2, Check, X, Lock, Mail, Send } from "lucide-react";
-import { SectionHeader } from "@/components/shared";
+import { SectionHeader, GlassCard, ActionButton, PageHeader } from "@/components/shared";
 
 interface EmailSettingsData {
   enabled: boolean;
@@ -173,7 +173,7 @@ export function EmailSection() {
         subtitle="Configure SMTP to send upgrade request notifications"
       />
 
-      <div className="glass-card rounded-xl p-6 mb-4 flex items-center justify-between">
+      <GlassCard rounded="rounded-xl" className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Mail className="w-5 h-5 text-primary" />
           <div>
@@ -199,12 +199,10 @@ export function EmailSection() {
             }`}
           />
         </button>
-      </div>
+      </GlassCard>
 
-      <div className="glass-card rounded-xl p-6 mb-4">
-        <h3 className="font-heading text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
-          <Lock className="w-4 h-4 text-primary" /> SMTP Configuration
-        </h3>
+      <GlassCard rounded="rounded-xl" className="mb-4">
+        <PageHeader title="SMTP Configuration" />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="sm:col-span-2">
             <label className="text-xs text-muted-foreground font-medium block mb-1">
@@ -271,12 +269,10 @@ export function EmailSection() {
             />
           </div>
         </div>
-      </div>
+      </GlassCard>
 
-      <div className="glass-card rounded-xl p-6 mb-4">
-        <h3 className="font-heading text-sm font-semibold text-foreground mb-4">
-          Sender &amp; Recipients
-        </h3>
+      <GlassCard rounded="rounded-xl" className="mb-4">
+        <PageHeader title="Sender &amp; Recipients" />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="text-xs text-muted-foreground font-medium block mb-1">
@@ -315,12 +311,10 @@ export function EmailSection() {
             />
           </div>
         </div>
-      </div>
+      </GlassCard>
 
-      <div className="glass-card rounded-xl p-6 mb-4">
-        <h3 className="font-heading text-sm font-semibold text-foreground mb-4">
-          Notification Triggers
-        </h3>
+      <GlassCard rounded="rounded-xl" className="mb-4">
+        <PageHeader title="Notification Triggers" />
         <div className="space-y-4">
           <div className="flex items-start gap-4">
             <Toggle
@@ -440,24 +434,17 @@ export function EmailSection() {
             </div>
           </div>
         </div>
-      </div>
+      </GlassCard>
 
       <div className="flex items-center gap-3 mb-6">
-        <button
+        <ActionButton
+          icon={saved ? Check : undefined}
+          variant="primary"
+          loading={saving}
           onClick={handleSave}
-          disabled={saving}
-          className="flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground rounded-xl font-semibold text-sm hover:bg-primary/90 transition-all disabled:opacity-60"
         >
-          {saving ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Check className="w-4 h-4" />
-          )}
-          {saving ? "Saving…" : "Save Settings"}
-        </button>
-        {saved && (
-          <span className="text-green-400 text-sm font-medium">✓ Saved</span>
-        )}
+          {saved ? "Saved!" : "Save Settings"}
+        </ActionButton>
         {saveError && <span className="text-red-400 text-sm">{saveError}</span>}
         {data?.updatedAt && (
           <span className="text-xs text-muted-foreground ml-auto">
@@ -466,14 +453,11 @@ export function EmailSection() {
         )}
       </div>
 
-      <div className="glass-card rounded-xl p-6">
-        <h3 className="font-heading text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-          <Send className="w-4 h-4 text-primary" /> Send Test Email
-        </h3>
-        <p className="text-xs text-muted-foreground mb-4">
-          Verify your SMTP settings by sending a test email. The connection is
-          established live.
-        </p>
+      <GlassCard rounded="rounded-xl">
+        <PageHeader
+          title="Send Test Email"
+          description="Verify your SMTP settings by sending a test email. The connection is established live."
+        />
         <div className="flex gap-3">
           <input
             type="email"
@@ -482,18 +466,14 @@ export function EmailSection() {
             placeholder="test@example.com"
             className="flex-1 bg-background/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
           />
-          <button
+          <ActionButton
+            icon={testing ? undefined : Send}
+            variant="secondary"
+            loading={testing}
             onClick={handleTestEmail}
-            disabled={testing || !testEmail}
-            className="flex items-center gap-2 px-4 py-2 bg-primary/15 text-primary hover:bg-primary/25 rounded-xl text-sm font-semibold transition-all disabled:opacity-60"
           >
-            {testing ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Send className="w-4 h-4" />
-            )}
             {testing ? "Sending…" : "Send"}
-          </button>
+          </ActionButton>
         </div>
         {testResult && (
           <p
@@ -502,7 +482,7 @@ export function EmailSection() {
             {testResult.ok ? "✓" : "✗"} {testResult.msg}
           </p>
         )}
-      </div>
+      </GlassCard>
     </div>
   );
 }

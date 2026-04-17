@@ -16,7 +16,7 @@ import {
   XCircle,
   MessageSquare,
 } from "lucide-react";
-import { SectionHeader } from "@/components/shared";
+import { SectionHeader, GlassCard } from "@/components/shared";
 
 type AdminTicket = {
   id: number;
@@ -245,7 +245,7 @@ function AdminTicketDetail({
         <ArrowLeft className="w-4 h-4" /> Back to Tickets
       </button>
 
-      <div className="glass-card rounded-2xl overflow-hidden">
+      <GlassCard rounded="rounded-2xl" padding="p-0" className="overflow-hidden">
         <div className="px-6 py-5 border-b border-border flex items-start justify-between gap-4">
           <div>
             <h3 className="font-heading text-lg font-bold text-foreground">
@@ -404,7 +404,7 @@ function AdminTicketDetail({
             </div>
           </form>
         </div>
-      </div>
+      </GlassCard>
     </div>
   );
 }
@@ -457,7 +457,7 @@ export function SupportSection() {
         ))}
       </div>
 
-      <div className="glass-card rounded-xl overflow-hidden">
+      <GlassCard rounded="rounded-xl" padding="p-0" className="overflow-hidden">
         {ticketsQuery.isLoading ? (
           <div className="flex justify-center py-12">
             <Loader2 className="w-5 h-5 animate-spin text-primary" />
@@ -539,7 +539,7 @@ export function SupportSection() {
             </table>
           </div>
         )}
-      </div>
+      </GlassCard>
     </div>
   );
 }

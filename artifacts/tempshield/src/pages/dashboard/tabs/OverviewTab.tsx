@@ -9,7 +9,7 @@ import { format, parseISO } from "date-fns";
 import { Link } from "wouter";
 import { type DashboardDataWithPlanConfig } from "@workspace/api-client-react";
 import ReputationBadge from "@/components/ReputationBadge";
-import VerificationModal from "@/components/VerificationModal";
+import VerificationModal, { type VerificationResult } from "@/components/VerificationModal";
 import { maskEmail } from "../utils";
 
 const ONBOARDING_KEY = "ts_onboarding_done";
@@ -156,7 +156,7 @@ export default function OverviewTab({
 }) {
   const [verifyEmail, setVerifyEmail] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
-  const [verifyResult, setVerifyResult] = useState<any | null>(null);
+  const [verifyResult, setVerifyResult] = useState<VerificationResult | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [showEmbedScript, setShowEmbedScript] = useState(false);
 

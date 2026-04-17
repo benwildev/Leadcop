@@ -12,6 +12,7 @@ import {
   Users,
 } from "lucide-react";
 import { motion } from "framer-motion";
+import { SectionHeader, GlassCard, ActionButton } from "@/components/shared";
 
 interface NLSubscriber {
   id: number;
@@ -180,22 +181,15 @@ export function NewsletterAdminSection() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="font-heading text-2xl font-bold text-foreground">
-            Newsletter
-          </h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Manage subscribers and send campaigns
-          </p>
-        </div>
-        <div className="flex gap-2">
+      <SectionHeader
+        title="Newsletter"
+        subtitle="Manage subscribers and send campaigns"
+        action={
           <span className="inline-flex items-center gap-1.5 rounded-full bg-green-500/10 border border-green-500/20 text-green-400 text-xs font-semibold px-3 py-1.5">
-            <Users className="w-3 h-3" /> {subsQuery.data?.activeCount ?? 0}{" "}
-            active
+            <Users className="w-3 h-3" /> {subsQuery.data?.activeCount ?? 0} active
           </span>
-        </div>
-      </div>
+        }
+      />
 
       <div className="flex gap-1 mb-6 bg-muted/30 rounded-xl p-1 w-fit">
         {(["subscribers", "campaigns"] as const).map((t) => (
@@ -210,7 +204,7 @@ export function NewsletterAdminSection() {
       </div>
 
       {tab === "subscribers" ? (
-        <div className="glass-card rounded-xl overflow-hidden">
+        <GlassCard rounded="rounded-xl" padding="p-0" className="overflow-hidden">
           {subsQuery.isLoading ? (
             <div className="flex justify-center py-12">
               <Loader2 className="w-5 h-5 animate-spin text-primary" />
@@ -276,24 +270,18 @@ export function NewsletterAdminSection() {
               </tbody>
             </table>
           )}
-        </div>
+        </GlassCard>
       ) : (
         <div>
           <div className="flex justify-end mb-4">
-            <button
-              onClick={openCreateCampaign}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
-            >
-              <Plus className="w-4 h-4" /> New Campaign
-            </button>
+            <ActionButton icon={Plus} variant="primary" onClick={openCreateCampaign}>
+              New Campaign
+            </ActionButton>
           </div>
 
           {(creatingCampaign || !!editingCampaign) && (
-            <motion.div
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="glass-card rounded-2xl p-6 mb-6 border border-primary/20"
-            >
+            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
+              <GlassCard rounded="rounded-2xl" className="border border-primary/20">
               <h3 className="font-heading text-lg font-semibold text-foreground mb-4">
                 {editingCampaign ? "Edit Campaign" : "New Campaign"}
               </h3>
@@ -349,33 +337,23 @@ export function NewsletterAdminSection() {
                 </div>
               </div>
               <div className="flex gap-3 mt-5">
-                <button
+                <ActionButton
+                  icon={Check}
+                  variant="primary"
+                  loading={savingCampaign}
                   onClick={handleSaveCampaign}
-                  disabled={
-                    savingCampaign ||
-                    !campaignForm.subject ||
-                    !campaignForm.htmlContent
-                  }
-                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
                 >
-                  {savingCampaign ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Check className="w-4 h-4" />
-                  )}
                   {editingCampaign ? "Save Changes" : "Create Campaign"}
-                </button>
-                <button
-                  onClick={closeCampaignForm}
-                  className="px-5 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                >
+                </ActionButton>
+                <ActionButton variant="ghost" onClick={closeCampaignForm}>
                   Cancel
-                </button>
+                </ActionButton>
               </div>
+              </GlassCard>
             </motion.div>
           )}
 
-          <div className="glass-card rounded-xl overflow-hidden">
+          <GlassCard rounded="rounded-xl" padding="p-0" className="overflow-hidden">
             {campaignsQuery.isLoading ? (
               <div className="flex justify-center py-12">
                 <Loader2 className="w-5 h-5 animate-spin text-primary" />
@@ -489,7 +467,7 @@ export function NewsletterAdminSection() {
                 </tbody>
               </table>
             )}
-          </div>
+          </GlassCard>
         </div>
       )}
     </div>

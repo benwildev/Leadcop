@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Check, Image, FileText, Globe } from "lucide-react";
 import { motion } from "framer-motion";
 import CloudinaryUpload from "@/components/CloudinaryUpload";
-import { SectionHeader } from "@/components/shared";
+import { SectionHeader, GlassCard, ActionButton } from "@/components/shared";
 
 interface SiteSettingsData {
   siteTitle: string;
@@ -123,11 +123,8 @@ export function BrandingSection() {
         </div>
       ) : (
         <div className="max-w-xl space-y-6">
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="glass-card rounded-xl p-6 space-y-5"
-          >
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+            <GlassCard rounded="rounded-xl" className="space-y-5">
             <h3 className="font-heading text-sm font-semibold text-foreground flex items-center gap-2">
               <Image className="w-4 h-4 text-primary" /> Site Identity
             </h3>
@@ -157,14 +154,11 @@ export function BrandingSection() {
               accept="image/png,image/jpeg,image/svg+xml,image/x-icon,image/vnd.microsoft.icon"
               hint="Browser tab icon — ICO, PNG or SVG, ideally 32×32 or 64×64 px"
             />
+          </GlassCard>
           </motion.div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.08 }}
-            className="glass-card rounded-xl p-6 space-y-5"
-          >
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}>
+            <GlassCard rounded="rounded-xl" className="space-y-5">
             <h3 className="font-heading text-sm font-semibold text-foreground flex items-center gap-2">
               <FileText className="w-4 h-4 text-primary" /> Global Meta Defaults
             </h3>
@@ -181,14 +175,11 @@ export function BrandingSection() {
               "Default SEO description for all pages",
               true,
             )}
+          </GlassCard>
           </motion.div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.14 }}
-            className="glass-card rounded-xl p-6 space-y-5"
-          >
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.14 }}>
+            <GlassCard rounded="rounded-xl" className="space-y-5">
             <h3 className="font-heading text-sm font-semibold text-foreground flex items-center gap-2">
               <Globe className="w-4 h-4 text-primary" /> Footer
             </h3>
@@ -199,22 +190,19 @@ export function BrandingSection() {
               "Overrides the default footer copyright line. Leave blank to use the default.",
               true,
             )}
+          </GlassCard>
           </motion.div>
 
           {error && <p className="text-sm text-red-400">{error}</p>}
 
-          <button
+          <ActionButton
+            icon={saved ? Check : undefined}
+            variant="primary"
+            loading={saving}
             onClick={handleSave}
-            disabled={saving}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60"
           >
-            {saving ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : saved ? (
-              <Check className="w-4 h-4" />
-            ) : null}
             {saved ? "Saved!" : "Save Branding"}
-          </button>
+          </ActionButton>
         </div>
       )}
     </div>

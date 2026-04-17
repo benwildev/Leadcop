@@ -15,7 +15,7 @@ import {
   Paperclip,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { SectionHeader } from "@/components/shared";
+import { SectionHeader, GlassCard, ActionButton } from "@/components/shared";
 import { PLAN_COLORS } from "../constants";
 
 type UpgradeRequestWithInvoice = {
@@ -177,8 +177,9 @@ export function SubscriptionsSection() {
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="glass-card rounded-2xl p-6 w-full max-w-md shadow-2xl"
+              className="w-full max-w-md"
             >
+              <GlassCard rounded="rounded-2xl" className="shadow-2xl">
               <div className="flex items-center gap-2 mb-4">
                 <div className="h-8 w-8 rounded-xl bg-green-500/15 flex items-center justify-center">
                   <Check className="w-4 h-4 text-green-400" />
@@ -275,6 +276,7 @@ export function SubscriptionsSection() {
                   {approveUploading ? "Processing…" : "Approve"}
                 </button>
               </div>
+              </GlassCard>
             </motion.div>
           </motion.div>
         )}
@@ -299,8 +301,9 @@ export function SubscriptionsSection() {
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="glass-card rounded-2xl p-6 w-full max-w-md shadow-2xl"
+              className="w-full max-w-md"
             >
+              <GlassCard rounded="rounded-2xl" className="shadow-2xl">
               <div className="flex items-center gap-2 mb-4">
                 <div className="h-8 w-8 rounded-xl bg-primary/10 flex items-center justify-center">
                   <Upload className="w-4 h-4 text-primary" />
@@ -383,6 +386,7 @@ export function SubscriptionsSection() {
                   {attachUploading ? "Uploading…" : "Upload Invoice"}
                 </button>
               </div>
+              </GlassCard>
             </motion.div>
           </motion.div>
         )}
@@ -404,15 +408,15 @@ export function SubscriptionsSection() {
           <Loader2 className="w-5 h-5 animate-spin text-primary" />
         </div>
       ) : requests.length === 0 ? (
-        <div className="glass-card rounded-xl p-10 text-center text-muted-foreground text-sm">
+        <GlassCard rounded="rounded-xl" padding="p-10" className="text-center text-muted-foreground text-sm">
           {tab === "PENDING"
             ? "No pending upgrade requests."
             : "No requests yet."}
-        </div>
+        </GlassCard>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {requests.map((req) => (
-            <div key={req.id} className="glass-card rounded-xl p-5">
+            <GlassCard key={req.id} rounded="rounded-xl" padding="p-5">
               <div className="flex justify-between items-start mb-3">
                 <div>
                   <div className="font-semibold text-foreground text-sm">
@@ -520,7 +524,7 @@ export function SubscriptionsSection() {
                   )}
                 </div>
               )}
-            </div>
+            </GlassCard>
           ))}
         </div>
       )}

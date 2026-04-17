@@ -9,6 +9,7 @@ import type { PlanConfig } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Shield, Zap, Lock, Plus, Check, Loader2, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { SectionHeader, GlassCard, ActionButton } from "@/components/shared";
 
 const BUILT_IN_PLANS = ["FREE", "BASIC", "PRO"];
 
@@ -141,26 +142,19 @@ export function PlanConfigSection() {
 
   return (
     <div>
-      <div className="flex items-start justify-between mb-6">
-        <div>
-          <h2 className="font-heading text-2xl font-bold text-foreground">
-            Plan Config
-          </h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Adjust limits and features per subscription tier
-          </p>
-        </div>
-        <button
-          onClick={() => {
-            setShowAddForm((p) => !p);
-            setCreateError("");
-          }}
-          className="flex items-center gap-1.5 px-3 py-2 bg-primary/15 text-primary hover:bg-primary/25 rounded-xl text-sm font-semibold transition-all flex-shrink-0 mt-1"
-        >
-          <Plus className="w-4 h-4" />
-          Add Plan
-        </button>
-      </div>
+      <SectionHeader
+        title="Plan Config"
+        subtitle="Adjust limits and features per subscription tier"
+        action={
+          <ActionButton
+            icon={Plus}
+            variant="secondary"
+            onClick={() => { setShowAddForm((p) => !p); setCreateError(""); }}
+          >
+            Add Plan
+          </ActionButton>
+        }
+      />
 
       <AnimatePresence>
         {showAddForm && (
@@ -168,8 +162,9 @@ export function PlanConfigSection() {
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
-            className="glass-card rounded-xl p-5 mb-6"
+            className="mb-6"
           >
+            <GlassCard rounded="rounded-xl" padding="p-5">
             <h3 className="font-heading text-base font-semibold text-foreground mb-4">
               New Subscription Plan
             </h3>
@@ -276,6 +271,7 @@ export function PlanConfigSection() {
                 Cancel
               </button>
             </div>
+            </GlassCard>
           </motion.div>
         )}
       </AnimatePresence>
@@ -303,8 +299,8 @@ export function PlanConfigSection() {
                 key={cfg.plan}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="glass-card rounded-xl p-5 flex flex-col gap-4"
               >
+              <GlassCard rounded="rounded-xl" padding="p-5" className="flex flex-col gap-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Icon className={`w-5 h-5 ${meta.color}`} />
@@ -418,6 +414,7 @@ export function PlanConfigSection() {
                   ) : null}
                   {saved[cfg.plan] ? "Saved!" : "Save Changes"}
                 </button>
+              </GlassCard>
               </motion.div>
             );
           })}

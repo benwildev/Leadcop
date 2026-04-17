@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Check, Tag } from "lucide-react";
-import { SectionHeader } from "@/components/shared";
+import { SectionHeader, GlassCard, ActionButton } from "@/components/shared";
 
 const PAGE_SLUGS = [
   { slug: "/", label: "Home (Landing)" },
@@ -92,7 +92,7 @@ function PageSeoEditor({ slug, label }: { slug: string; label: string }) {
   };
 
   return (
-    <div className="glass-card rounded-xl overflow-hidden">
+    <GlassCard rounded="rounded-xl" padding="p-0" className="overflow-hidden">
       <div className="px-5 py-3 border-b border-border flex items-center gap-2 bg-muted/20">
         <Tag className="w-3.5 h-3.5 text-primary" />
         <span className="text-sm font-semibold text-foreground">{label}</span>
@@ -202,22 +202,18 @@ function PageSeoEditor({ slug, label }: { slug: string; label: string }) {
           </div>
           {error && <p className="text-xs text-red-400">{error}</p>}
           <div className="flex justify-end">
-            <button
+            <ActionButton
+              icon={saved ? Check : undefined}
+              variant="primary"
+              loading={saving}
               onClick={handleSave}
-              disabled={saving}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60"
             >
-              {saving ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : saved ? (
-                <Check className="w-3.5 h-3.5" />
-              ) : null}
               {saved ? "Saved!" : "Save"}
-            </button>
+            </ActionButton>
           </div>
         </div>
       )}
-    </div>
+    </GlassCard>
   );
 }
 

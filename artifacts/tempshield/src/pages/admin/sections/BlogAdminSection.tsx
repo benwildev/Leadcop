@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import MarkdownEditor from "@/components/MarkdownEditor";
+import { SectionHeader, GlassCard, ActionButton } from "@/components/shared";
 
 interface BlogPost {
   id: number;
@@ -172,29 +173,19 @@ export function BlogAdminSection() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="font-heading text-2xl font-bold text-foreground">
-            Blog
-          </h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Create and manage blog posts
-          </p>
-        </div>
-        <button
-          onClick={openCreate}
-          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
-        >
-          <Plus className="w-4 h-4" /> New Post
-        </button>
-      </div>
+      <SectionHeader
+        title="Blog"
+        subtitle="Create and manage blog posts"
+        action={
+          <ActionButton icon={Plus} variant="primary" onClick={openCreate}>
+            New Post
+          </ActionButton>
+        }
+      />
 
       {isFormOpen && (
-        <motion.div
-          initial={{ opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="glass-card rounded-2xl p-6 mb-6 border border-primary/20"
-        >
+        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
+          <GlassCard rounded="rounded-2xl" className="border border-primary/20">
           <h3 className="font-heading text-lg font-semibold text-foreground mb-4">
             {editing ? "Edit Post" : "New Post"}
           </h3>
@@ -352,29 +343,23 @@ export function BlogAdminSection() {
             </div>
           </div>
           <div className="flex gap-3 mt-5">
-            <button
+            <ActionButton
+              icon={Check}
+              variant="primary"
+              loading={saving}
               onClick={handleSave}
-              disabled={saving || !form.title || !form.slug}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
             >
-              {saving ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Check className="w-4 h-4" />
-              )}
               {editing ? "Save Changes" : "Create Post"}
-            </button>
-            <button
-              onClick={handleClose}
-              className="px-5 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            >
+            </ActionButton>
+            <ActionButton variant="ghost" onClick={handleClose}>
               Cancel
-            </button>
+            </ActionButton>
           </div>
+          </GlassCard>
         </motion.div>
       )}
 
-      <div className="glass-card rounded-xl overflow-hidden">
+      <GlassCard rounded="rounded-xl" padding="p-0" className="overflow-hidden">
         {postsQuery.isLoading ? (
           <div className="flex justify-center py-12">
             <Loader2 className="w-5 h-5 animate-spin text-primary" />
@@ -479,7 +464,7 @@ export function BlogAdminSection() {
             </tbody>
           </table>
         )}
-      </div>
+      </GlassCard>
     </div>
   );
 }

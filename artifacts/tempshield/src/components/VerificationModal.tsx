@@ -2,7 +2,7 @@ import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, CheckCircle2, XCircle, Mail } from "lucide-react";
 
-interface VerificationResult {
+export interface VerificationResult {
   isDisposable: boolean;
   domain: string;
   reputationScore: number;
