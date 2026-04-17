@@ -80,6 +80,7 @@ const replySchema = z.object({
 
 const updateStatusSchema = z.object({
   status: z.enum(["open", "in_progress", "resolved", "closed"]),
+  notify: z.boolean().optional().default(true),
 });
 
 router.get("/tickets", requireAuth, async (req: Request, res: Response) => {
@@ -389,7 +390,7 @@ router.put("/admin/tickets/:id/status", requireAdmin, async (req: Request, res: 
 
   res.json({ ok: true });
 
-  if (existing.userEmail && existing.status !== result.data.status) {
+  if (existing.userEmail && existing.status !== result.data.status && result.data.notify) {
     sendSupportTicketStatusChangeNotification({
       ticketId: id,
       subject: existing.subject,

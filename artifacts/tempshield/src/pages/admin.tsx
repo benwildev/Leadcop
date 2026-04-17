@@ -3992,6 +3992,7 @@ function AdminTicketDetail({
   const [sending, setSending] = useState(false);
   const [newStatus, setNewStatus] = useState<string>("");
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [notifyUser, setNotifyUser] = useState(true);
 
   const detailQuery = useQuery<{
     ticket: AdminTicket;
@@ -4011,6 +4012,10 @@ function AdminTicketDetail({
     if (ticket) setNewStatus(ticket.status);
   }, [ticket]);
 
+  useEffect(() => {
+    setNotifyUser(true);
+  }, [ticketId]);
+
   const handleStatusUpdate = async () => {
     if (!newStatus || newStatus === ticket?.status) return;
     setUpdatingStatus(true);
@@ -4019,8 +4024,9 @@ function AdminTicketDetail({
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({ status: newStatus, notify: notifyUser }),
       });
+      setNotifyUser(true);
       qc.invalidateQueries({
         queryKey: [`/api/support/admin/tickets/${ticketId}`],
       });
@@ -4109,6 +4115,15 @@ function AdminTicketDetail({
             </p>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={notifyUser}
+                onChange={(e) => setNotifyUser(e.target.checked)}
+                className="w-3.5 h-3.5 accent-primary"
+              />
+              Notify user
+            </label>
             <select
               value={newStatus}
               onChange={(e) => setNewStatus(e.target.value)}
