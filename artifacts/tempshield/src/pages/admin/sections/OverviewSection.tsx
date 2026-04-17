@@ -182,7 +182,7 @@ export function OverviewSection() {
         },
         {
           name: "Pro",
-          value: stats.usersByPlan?.Pro || stats.usersByPlan?.PRO || 0,
+          value: stats.usersByPlan?.PRO || 0,
           color: CHART_PLAN_HEX.Pro,
         },
       ]

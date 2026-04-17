@@ -494,11 +494,11 @@ export interface UserAnalyticsResponse {
   topBlockedDomains?: AnalyticsTopDomain[];
 }
 
-export function useGetUserAnalytics(options?: { query?: UseQueryOptions<UserAnalyticsResponse> }) {
+export function useGetUserAnalytics(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ["/api/user/analytics"],
     queryFn: () => customFetch<UserAnalyticsResponse>("/api/user/analytics"),
-    ...options?.query,
+    enabled: options?.enabled,
   });
 }
 

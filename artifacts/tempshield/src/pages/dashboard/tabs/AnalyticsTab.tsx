@@ -14,7 +14,7 @@ import {
 
 export default function AnalyticsTab({ data, usagePct }: { data: DashboardDataWithPlanConfig; usagePct: number }) {
   const plan = data.user.plan;
-  const { data: analytics, isLoading } = useGetUserAnalytics({ query: { enabled: plan !== "FREE" } });
+  const { data: analytics, isLoading } = useGetUserAnalytics({ enabled: plan !== "FREE" });
 
   const requestsRemaining = data.user.requestLimit - data.user.requestCount;
 

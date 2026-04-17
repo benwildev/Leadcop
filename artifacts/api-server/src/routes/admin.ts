@@ -926,7 +926,7 @@ const upload = multer({
 });
 
 router.post("/upload", requireAdmin, upload.single("file"), async (req: Request, res: Response) => {
-  if (!req.file) return res.status(400).json({ error: "No file provided" });
+  if (!req.file) { res.status(400).json({ error: "No file provided" }); return; }
   try {
     const result = await new Promise<{ secure_url: string }>((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
