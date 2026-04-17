@@ -6,11 +6,12 @@ import {
   useAdminResetUsage,
   useAdminRevokeKey,
   UpdatePlanRequestPlan,
+  type AdminUser,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
-import { Loader2, Search, Key, Trash2, RotateCcw } from "lucide-react";
-import { SectionHeader, GlassCard, ActionButton } from "@/components/shared";
+import { Loader2, Search, Key, Trash2, RotateCcw, Users } from "lucide-react";
+import { SectionHeader, GlassCard, ActionButton, DataTable, EmptyState, type Column } from "@/components/shared";
 import { PLAN_COLORS } from "../constants";
 
 export function UsersSection() {
@@ -77,6 +78,90 @@ export function UsersSection() {
     }
   };
 
+  const userColumns: Column<AdminUser>[] = [
+    {
+      key: "name",
+      label: "Name / Email",
+      render: (u) => (
+        <>
+          <div className="font-medium text-foreground">{u.name}</div>
+          <div className="text-xs text-muted-foreground">{u.email}</div>
+        </>
+      ),
+    },
+    {
+      key: "plan",
+      label: "Plan",
+      render: (u) => (
+        <select
+          value={u.plan}
+          onChange={(e) => handlePlan(u.id, e.target.value)}
+          disabled={loadingIds[`plan-${u.id}`]}
+          className={`text-xs font-bold rounded-md px-2 py-1 border border-border bg-background cursor-pointer ${PLAN_COLORS[u.plan]}`}
+        >
+          <option value="FREE">FREE</option>
+          <option value="BASIC">BASIC</option>
+          <option value="PRO">PRO</option>
+        </select>
+      ),
+    },
+    {
+      key: "usage",
+      label: "Usage",
+      render: (u) => (
+        <span className="text-muted-foreground text-xs">
+          {u.requestCount} / {u.requestLimit}
+          <div className="mt-1 h-1 w-20 rounded-full bg-border overflow-hidden">
+            <div
+              className="h-1 rounded-full bg-primary"
+              style={{ width: `${Math.min(100, (u.requestCount / u.requestLimit) * 100)}%` }}
+            />
+          </div>
+        </span>
+      ),
+    },
+    {
+      key: "bulkJobCount",
+      label: "Bulk Jobs",
+      render: (u) => <span className="text-xs text-muted-foreground">{u.bulkJobCount ?? 0}</span>,
+    },
+    {
+      key: "createdAt",
+      label: "Joined",
+      render: (u) => <span className="text-xs text-muted-foreground">{format(parseISO(u.createdAt), "PP")}</span>,
+    },
+    {
+      key: "actions",
+      label: "Actions",
+      render: (u) => (
+        <div className="flex items-center gap-1">
+          <ActionButton
+            icon={RotateCcw}
+            variant="outline"
+            loading={loadingIds[`reset-${u.id}`]}
+            onClick={() => handleReset(u.id)}
+            title="Reset usage"
+          />
+          <ActionButton
+            icon={Key}
+            variant="outline"
+            loading={loadingIds[`revoke-${u.id}`]}
+            onClick={() => handleRevoke(u.id)}
+            title="Revoke API key"
+            className="hover:text-yellow-400 hover:bg-yellow-500/10"
+          />
+          <ActionButton
+            icon={Trash2}
+            variant="danger"
+            loading={loadingIds[`del-${u.id}`]}
+            onClick={() => handleDelete(u.id, u.email)}
+            title="Delete user"
+          />
+        </div>
+      ),
+    },
+  ];
+
   return (
     <div>
       <SectionHeader title="Users" subtitle="Manage all registered users" />
@@ -95,85 +180,13 @@ export function UsersSection() {
           <div className="flex justify-center py-12">
             <Loader2 className="w-5 h-5 animate-spin text-primary" />
           </div>
+        ) : users.length === 0 ? (
+          <EmptyState icon={Users} title="No users found." />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="border-b border-border">
-                <tr>
-                  {["Name / Email", "Plan", "Usage", "Bulk Jobs", "Joined", "Actions"].map((h) => (
-                    <th key={h} className="px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {users.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="text-center py-10 text-muted-foreground text-sm">No users found.</td>
-                  </tr>
-                ) : (
-                  users.map((u) => (
-                    <tr key={u.id} className="border-b border-border/50 last:border-0 hover:bg-muted/20 transition-colors">
-                      <td className="px-4 py-3">
-                        <div className="font-medium text-foreground">{u.name}</div>
-                        <div className="text-xs text-muted-foreground">{u.email}</div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <select
-                          value={u.plan}
-                          onChange={(e) => handlePlan(u.id, e.target.value)}
-                          disabled={loadingIds[`plan-${u.id}`]}
-                          className={`text-xs font-bold rounded-md px-2 py-1 border border-border bg-background cursor-pointer ${PLAN_COLORS[u.plan]}`}
-                        >
-                          <option value="FREE">FREE</option>
-                          <option value="BASIC">BASIC</option>
-                          <option value="PRO">PRO</option>
-                        </select>
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground text-xs">
-                        {u.requestCount} / {u.requestLimit}
-                        <div className="mt-1 h-1 w-20 rounded-full bg-border overflow-hidden">
-                          <div
-                            className="h-1 rounded-full bg-primary"
-                            style={{ width: `${Math.min(100, (u.requestCount / u.requestLimit) * 100)}%` }}
-                          />
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground">{u.bulkJobCount ?? 0}</td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground">{format(parseISO(u.createdAt), "PP")}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1">
-                          <ActionButton
-                            icon={RotateCcw}
-                            variant="outline"
-                            loading={loadingIds[`reset-${u.id}`]}
-                            onClick={() => handleReset(u.id)}
-                            title="Reset usage"
-                          />
-                          <ActionButton
-                            icon={Key}
-                            variant="outline"
-                            loading={loadingIds[`revoke-${u.id}`]}
-                            onClick={() => handleRevoke(u.id)}
-                            title="Revoke API key"
-                            className="hover:text-yellow-400 hover:bg-yellow-500/10"
-                          />
-                          <ActionButton
-                            icon={Trash2}
-                            variant="danger"
-                            loading={loadingIds[`del-${u.id}`]}
-                            onClick={() => handleDelete(u.id, u.email)}
-                            title="Delete user"
-                          />
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+          <DataTable<AdminUser>
+            columns={userColumns}
+            rows={users}
+          />
         )}
       </GlassCard>
     </div>
