@@ -190,8 +190,8 @@ function SidebarContent({
               <Shield className="w-4 h-4 text-white" />
             </div>
           )
-        ) : /* Expanded: logo + title + collapse button */
-        (
+        ) : (
+          /* Expanded: logo + title + collapse button */
           <>
             {siteSettings.logoUrl && !logoError ? (
               <img
@@ -213,7 +213,7 @@ function SidebarContent({
             </div>
             <button
               onClick={onToggle}
-              className="hidden lg:flex ml-auto text-muted-foreground hover:text-foreground transition-colors p-1 rounded-lg hover:bg-muted/50 flex-shrink-0"
+              className="hidden lg:flex text-muted-foreground hover:text-foreground transition-colors p-1 rounded-lg hover:bg-muted/50 flex-shrink-0"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
@@ -5322,7 +5322,9 @@ export default function AdminPage() {
         </div>
 
         {/* Section content */}
-        <div className={`${collapsed ? "max-w-7xl" : "max-w-5xl"} mx-auto px-4 sm:px-6 py-6 sm:py-8 transition-all duration-300`}>
+        <div
+          className={`${collapsed ? "max-w-7xl" : "max-w-5xl"} mx-auto px-4 sm:px-6 py-6 sm:py-8 transition-all duration-300`}
+        >
           <AnimatePresence mode="wait">
             <motion.div
               key={section}
