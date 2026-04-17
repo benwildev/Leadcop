@@ -41,3 +41,8 @@ expertMode = true
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 120000
+
+[deployment]
+deploymentTarget = "autoscale"
+run = ["bash", "-c", "PORT=8080 node --enable-source-maps ./artifacts/api-server/dist/index.mjs"]
+build = ["bash", "-c", "pnpm install --frozen-lockfile && pnpm run build"]
