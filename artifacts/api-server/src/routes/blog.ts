@@ -13,6 +13,7 @@ const createBlogPostSchema = z.object({
   content: z.string().default(""),
   author: z.string().max(100).default("LeadCop Team"),
   coverImage: z.string().url().optional().nullable(),
+  coverImageAlt: z.string().max(255).optional().nullable(),
   tags: z.string().max(500).default(""),
   status: z.enum(["DRAFT", "PUBLISHED"]).default("DRAFT"),
   seoTitle: z.string().max(255).optional().nullable(),

@@ -21,7 +21,7 @@ function CodeBlock({ code, lang = "bash" }: { code: string; lang?: string }) {
           {copied ? <Check className="h-3.5 w-3.5 text-primary" /> : <Copy className="h-3.5 w-3.5" />}
         </button>
       </div>
-      <pre className="overflow-x-auto p-4 font-mono text-xs leading-relaxed text-green-400 dark:text-green-300 whitespace-pre-wrap">
+      <pre className="overflow-x-auto p-4 font-mono text-xs leading-relaxed text-green-600 dark:text-green-400 whitespace-pre-wrap">
         <code>{code}</code>
       </pre>
     </div>

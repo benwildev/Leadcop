@@ -8,7 +8,7 @@ export const emailSettingsTable = pgTable("email_settings", {
   smtpUser: text("smtp_user"),
   smtpPass: text("smtp_pass"),
   smtpSecure: boolean("smtp_secure").notNull().default(false),
-  fromName: text("from_name").notNull().default("TempShield"),
+  fromName: text("from_name").notNull().default("LeadCop"),
   fromEmail: text("from_email"),
   notifyOnSubmit: boolean("notify_on_submit").notNull().default(true),
   notifyOnDecision: boolean("notify_on_decision").notNull().default(true),

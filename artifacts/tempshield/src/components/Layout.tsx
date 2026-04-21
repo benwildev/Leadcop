@@ -112,12 +112,6 @@ export function Navbar() {
             API Docs
           </Link>
           <Link
-            href="/verify"
-            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            Email Checker
-          </Link>
-          <Link
             href="/blog"
             className="text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
@@ -236,13 +230,6 @@ export function Navbar() {
                 API Docs
               </Link>
               <Link
-                href="/verify"
-                onClick={() => setMobileOpen(false)}
-                className="text-sm font-medium text-muted-foreground hover:text-foreground"
-              >
-                Email Checker
-              </Link>
-              <Link
                 href="/blog"
                 onClick={() => setMobileOpen(false)}
                 className="text-sm font-medium text-muted-foreground hover:text-foreground"
@@ -336,12 +323,6 @@ export function Footer() {
               className="transition-colors hover:text-foreground"
             >
               Pricing
-            </Link>
-            <Link
-              href="/verify"
-              className="transition-colors hover:text-foreground"
-            >
-              Email Checker
             </Link>
             <Link
               href="/blog"

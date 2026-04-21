@@ -3,6 +3,7 @@ import { z } from "zod";
 import { v4 as uuidv4 } from "uuid";
 import { db, paymentSettingsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { logger } from "../lib/logger.js";
 import { isDisposableDomain } from "../lib/domain-cache.js";
 import { verifySmtp } from "../lib/smtp-verifier.js";
 import {
@@ -26,6 +27,15 @@ async function checkMx(domain: string): Promise<boolean> {
 }
 
 const router = Router();
+
+const MAX_RETRIES = 0;
+const INITIAL_RETRY_DELAY_MS = 5000;
+const RETRY_MULTIPLIER = 2;
+
+// ── Free verify limit cache (avoid DB hit on every request) ─────────────────
+let cachedFreeLimit: number | null = null;
+let freeLimitCacheExpiry = 0;
+const FREE_LIMIT_TTL_MS = 60_000; // 60 seconds
 
 const FREE_VERIFY_COOKIE = "tempshield_free_verify";
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
@@ -55,15 +65,21 @@ function pruneExpired() {
 }
 
 async function getFreeVerifyLimit(): Promise<number> {
+  const now = Date.now();
+  if (cachedFreeLimit !== null && now < freeLimitCacheExpiry) {
+    return cachedFreeLimit;
+  }
   try {
     const [row] = await db
       .select({ freeVerifyLimit: paymentSettingsTable.freeVerifyLimit })
       .from(paymentSettingsTable)
       .where(eq(paymentSettingsTable.id, 1))
       .limit(1);
-    return row?.freeVerifyLimit ?? 5;
+    cachedFreeLimit = row?.freeVerifyLimit ?? 5;
+    freeLimitCacheExpiry = now + FREE_LIMIT_TTL_MS;
+    return cachedFreeLimit;
   } catch {
-    return 5;
+    return cachedFreeLimit ?? 5;
   }
 }
 
@@ -101,6 +117,11 @@ function clientIp(req: import("express").Request): string {
 
 const freeVerifySchema = z.object({
   email: z.string().email(),
+  captchaToken: z.string().min(1, "Captcha token is required"),
+});
+
+const prewarmSchema = z.object({
+  email: z.string().email(),
 });
 
 // ── Exact-email SMTP result cache (5 min TTL) ─────────────────────────────────
@@ -110,7 +131,7 @@ interface CachedSmtp {
   expiresAt: number;
 }
 const smtpCache = new Map<string, CachedSmtp>();
-const SMTP_CACHE_TTL_MS = 5 * 60 * 1000;
+const SMTP_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
 function pruneSmtpCache() {
   const now = Date.now();
@@ -161,6 +182,29 @@ router.get("/verify/free/status", async (req, res) => {
   res.json({ used, limit, remaining, limitReached: remaining === 0 });
 });
 
+// POST /api/verify/prewarm — trigger MX/SMTP check without waiting for result or hitting quota
+router.post("/verify/prewarm", async (req, res) => {
+  const parsed = prewarmSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid email" });
+    return;
+  }
+  const { email } = parsed.data;
+  const domainRaw = email.split("@")[1];
+  const domain = domainRaw?.toLowerCase() ?? "";
+
+  if (isDisposableDomain(domain)) {
+    // No need to pre-warm SMTP for disposable 
+    res.json({ message: "prewarmed (skipped)" });
+    return;
+  }
+
+  // Start check in background, don't await
+  cachedSmtpCheck(domain, email).catch(() => {});
+  
+  res.json({ message: "prewarming started" });
+});
+
 // POST /api/verify/free — public email check, session + IP rate-limited
 router.post("/verify/free", async (req, res) => {
   const cookieId = req.cookies?.[FREE_VERIFY_COOKIE];
@@ -199,11 +243,44 @@ router.post("/verify/free", async (req, res) => {
 
   const parsed = freeVerifySchema.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Invalid email address" });
+    res.status(400).json({ error: "Invalid email address or missing captcha." });
     return;
   }
 
-  const { email } = parsed.data;
+  const { email, captchaToken } = parsed.data;
+
+  // 🔒 reCAPTCHA verification — FAIL CLOSED (security best practice)
+  const secretKey = process.env.RECAPTCHA_SECRET_KEY;
+  if (!secretKey) {
+    res.status(500).json({ error: "Captcha not configured. Please contact support." });
+    logger.error("RECAPTCHA_SECRET_KEY not configured in environment");
+    return;
+  }
+
+  try {
+    const verifyUrl = `https://www.google.com/recaptcha/api/siteverify?secret=${secretKey}&response=${captchaToken}&remoteip=${ip}`;
+    const captchaRes = await fetch(verifyUrl, { method: "POST" });
+    const captchaVerify = await captchaRes.json() as { success: boolean; score?: number; action?: string; errors?: string[] };
+    
+    logger.debug({ captchaVerify, errors: captchaVerify.errors }, "reCAPTCHA response");
+    
+    if (!captchaVerify.success) {
+      logger.warn({ errors: captchaVerify.errors }, "Captcha verification failed from Google");
+      res.status(403).json({ error: "Captcha verification failed. Please try again." });
+      return;
+    }
+
+    // Optional: Check score if using reCAPTCHA v3
+    if (captchaVerify.score !== undefined && captchaVerify.score < 0.5) {
+      res.status(403).json({ error: "Captcha score too low. Please try again." });
+      return;
+    }
+  } catch (err) {
+    logger.error({ err }, "Error verifying captcha");
+    res.status(500).json({ error: "Error verifying captcha. Please try again." });
+    return;
+  }
+
   const [localPart, domainRaw] = email.split("@");
   const domain = domainRaw?.toLowerCase() ?? "";
 

@@ -22,6 +22,7 @@ import {
   isRoleAccount,
   isFreeEmail,
   checkDnsbl,
+  getDomainSuggestion,
   FREE_EMAIL_PROVIDERS,
 } from "../lib/reputation.js";
 import { fireWebhook } from "../lib/webhooks.js";
@@ -32,8 +33,57 @@ const dnsPromises = dns.promises;
 
 const router = Router();
 
+// 🔒 Per-API-Key Rate Limiting (prevents abuse across multiple keys)
+interface RateLimitEntry {
+  count: number;
+  resetAt: number;
+}
+
+const apiKeyRateLimits = new Map<string, RateLimitEntry>();
+const RATE_LIMIT_WINDOW_MS = 60000; // 1 minute
+const RATE_LIMIT_PER_KEY = 100; // Max 100 requests per minute per API key
+
+/**
+ * Check if API key has exceeded rate limit
+ * @returns true if within limit, false if exceeded
+ */
+function checkApiKeyRateLimit(apiKey: string): boolean {
+  const now = Date.now();
+  const existing = apiKeyRateLimits.get(apiKey);
+
+  if (!existing || existing.resetAt < now) {
+    // Reset or create new entry
+    apiKeyRateLimits.set(apiKey, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return true;
+  }
+
+  if (existing.count >= RATE_LIMIT_PER_KEY) {
+    return false;
+  }
+
+  existing.count++;
+  return true;
+}
+
+/**
+ * Cleanup old rate limit entries (runs periodically)
+ */
+function cleanupRateLimits() {
+  const now = Date.now();
+  for (const [key, entry] of apiKeyRateLimits) {
+    if (entry.resetAt < now) {
+      apiKeyRateLimits.delete(key);
+    }
+  }
+}
+
+// Cleanup rate limits every minute
+setInterval(cleanupRateLimits, 60000);
+
+
 const checkEmailSchema = z.object({
   email: z.string().email(),
+  path: z.string().optional(),
 });
 
 const bulkCheckSchema = z.object({
@@ -208,6 +258,11 @@ async function checkOriginAllowed(req: Request, userId: number): Promise<{ allow
 }
 
 function extractRefererPath(req: Request): string | null {
+  const bodyPath = req.body?.path;
+  if (typeof bodyPath === "string" && bodyPath) {
+    return bodyPath.toLowerCase() || "/";
+  }
+
   const referer = req.headers["referer"];
   const source = Array.isArray(referer) ? referer[0] : referer;
   if (!source) return null;
@@ -265,11 +320,12 @@ export async function performChecks(
   email: string,
   userId: number,
   planConfig: Awaited<ReturnType<typeof getPlanConfig>>
-): Promise<ChecksResult & { isValidSyntax: boolean; isFreeEmail: boolean; smtpDetails?: any }> {
+): Promise<ChecksResult & { isValidSyntax: boolean; isFreeEmail: boolean; didYouMean: string | null; smtpDetails?: any }> {
   const [localPart, domainRaw] = email.split("@");
   const domain = domainRaw?.toLowerCase() ?? "";
   const isValidSyntax = z.string().email().safeParse(email).success;
   const isFree = isFreeEmail(domain);
+  const didYouMean = getDomainSuggestion(domain);
 
   const [blocked] = await db
     .select({ id: customBlocklistTable.id })
@@ -355,6 +411,7 @@ export async function performChecks(
     catchAll,
     isValidSyntax,
     isFreeEmail: isFree,
+    didYouMean,
     smtpDetails,
   };
 }
@@ -415,9 +472,17 @@ router.post("/check-email/demo", async (req, res) => {
     res.status(400).json({ error: "Invalid email address" });
     return;
   }
-  const isDisposable = isDisposableDomain(domain);
+
+  // 🧠 Brain: Check for typos first (gmail.co -> gmail.com)
+  const didYouMean = getDomainSuggestion(domain);
+
+  // 🧠 Brain: Ensure Free Providers like Gmail are NEVER marked as disposable in the demo
+  const isFree = isFreeEmail(domain);
+  const isDisposable = !isFree && isDisposableDomain(domain);
+
   res.json({
     isDisposable,
+    didYouMean,
     domain,
     reputationScore: isDisposable ? 0 : 100,
     requestsRemaining: 999,
@@ -440,9 +505,24 @@ router.post("/check-email", async (req, res) => {
   const { userId, userPlan, requestCount, isApiKeyAuth, blockFreeEmails } = auth;
   const planConfig = await getPlanConfig(userPlan);
 
+  // 🔒 Check monthly quota
   if (requestCount >= planConfig.requestLimit) {
     res.status(429).json({ error: "Rate limit exceeded. Please upgrade your plan." });
     return;
+  }
+
+  // 🔒 Check per-minute rate limit for API key auth
+  if (isApiKeyAuth) {
+    const authHeader = req.headers.authorization;
+    const apiKey = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : "";
+
+    if (apiKey && !checkApiKeyRateLimit(apiKey)) {
+      res.status(429).json({
+        error: "Too many requests. Rate limit: 100 requests per minute per API key.",
+        retryAfter: 60,
+      });
+      return;
+    }
   }
 
   if (isApiKeyAuth) {
@@ -479,6 +559,8 @@ router.post("/check-email", async (req, res) => {
   const isDisposable = checks.disposable || (blockFreeEmails && checks.isFreeEmail);
   const requestsRemaining = Math.max(0, planConfig.requestLimit - (requestCount + 1));
 
+  const source = req.headers["x-leadcop-source"]?.toString() || "custom-integration";
+
   await db.insert(apiUsageTable).values({
     userId,
     endpoint: "/check-email",
@@ -486,6 +568,7 @@ router.post("/check-email", async (req, res) => {
     domain: checks.domain,
     isDisposable,
     reputationScore: checks.reputationScore,
+    source,
   });
 
   void dispatchWebhooks(userId, email, checks.domain, isDisposable, checks.reputationScore, isApiKeyAuth).catch(() => {});
@@ -500,6 +583,7 @@ router.post("/check-email", async (req, res) => {
     isValidSyntax: checks.isValidSyntax,
     isRoleAccount: checks.roleAccount,
     isFreeEmail: checks.isFreeEmail,
+    didYouMean: checks.didYouMean,
     mxValid: checks.mxValidResult ?? false,
     inboxSupport: checks.inboxSupportResult ?? false,
     canConnectSmtp: checks.smtpDetails?.canConnect ?? null,

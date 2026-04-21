@@ -252,6 +252,11 @@ export default function VerifyPage() {
   const [hasChecked, setHasChecked] = useState(false);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [prewarmedEmail, setPrewarmedEmail] = useState("");
+  const [showCaptcha, setShowCaptcha] = useState(false);
+  const [attemptedVerify, setAttemptedVerify] = useState(false);
+  const [backendResult, setBackendResult] = useState<FreeVerifyResult | null>(null);
+  const [backendLoading, setBackendLoading] = useState(false);
+  const [captchaDone, setCaptchaDone] = useState(false);
 
   const [used, setUsed] = useState(0);
   const [limit, setLimit] = useState(5);
@@ -295,40 +300,72 @@ export default function VerifyPage() {
 
   const handleCaptchaChange = (token: string | null) => {
     setCaptchaToken(token);
+    setCaptchaDone(!!token);
+    
+    // When captcha completes, start backend verification
+    if (token && attemptedVerify && email.trim()) {
+      startBackendVerification(email, token);
+    }
   };
 
-  const handleVerify = async () => {
-    if (!email.trim() || loading) return;
+  const showResults = (res: FreeVerifyResult) => {
+    setResult(res);
+    setHasChecked(true);
+    setUsed(res.used ?? used + 1);
+    setLimit(res.limit ?? limit);
+    setLimitReached(res.limitReached ?? false);
+    setLoading(false);
+  };
+
+  const startBackendVerification = async (emailToVerify: string, captchaTokenToUse: string) => {
+    setBackendLoading(true);
     setError(null);
-    setLoading(true);
-    setResult(null);
     try {
       const r = await fetch("/api/verify/free", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), captchaToken }),
+        body: JSON.stringify({ email: emailToVerify.trim(), captchaToken: captchaTokenToUse }),
       });
       const data = await r.json();
+      
       if (!r.ok) {
         if (r.status === 429) {
           setLimitReached(true);
           setUsed(data.used ?? used);
           setLimit(data.limit ?? limit);
+          setError("Free verification limit reached. Sign up for bulk verification.");
         } else {
           setError(data.error || "Verification failed. Please try again.");
         }
+        setBackendLoading(false);
         return;
       }
-      setResult(data);
-      setHasChecked(true);
-      setUsed(data.used ?? used + 1);
-      setLimit(data.limit ?? limit);
-      setLimitReached(data.limitReached ?? false);
-    } catch {
+
+      setBackendResult(data);
+      // Show results immediately since we have both captcha and backend result
+      showResults(data);
+      setBackendLoading(false);
+    } catch (err) {
       setError("Network error. Please check your connection and try again.");
-    } finally {
-      setLoading(false);
+      setBackendLoading(false);
+    }
+  };
+
+  const handleVerify = async () => {
+    if (!email.trim() || loading) return;
+
+    // First click: show captcha (don't call backend yet)
+    if (!showCaptcha) {
+      setLoading(true);
+      setShowCaptcha(true);
+      setAttemptedVerify(true);
+      setCaptchaDone(false);
+      setResult(null);
+      setBackendResult(null);
+      setCaptchaToken(null);
+      setBackendLoading(true); // Show loading indicator
+      return;
     }
   };
 
@@ -406,7 +443,16 @@ export default function VerifyPage() {
                     <input
                       type="email"
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        // Reset state when email changes
+                        if (showCaptcha) {
+                          setCaptchaToken(null);
+                          setCaptchaDone(false);
+                          setBackendResult(null);
+                          setResult(null);
+                        }
+                      }}
                       onKeyDown={(e) => e.key === "Enter" && handleVerify()}
                       placeholder="Enter an email address…"
                       className="w-full bg-card border border-border rounded-xl pl-10 pr-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all shadow-sm"
@@ -416,23 +462,92 @@ export default function VerifyPage() {
                   </div>
                   <button
                     onClick={handleVerify}
-                    disabled={loading || !email.trim() || !captchaToken}
+                    disabled={loading || !email.trim()}
                     className="px-6 py-3 bg-primary text-primary-foreground rounded-xl text-sm font-semibold hover:bg-primary/90 transition-all disabled:opacity-50 flex items-center gap-2 shadow-sm shadow-primary/20"
                   >
-                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Analyze"}
+                    {loading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" /> 
+                        {backendLoading ? "Verifying..." : "Analyze"}
+                      </>
+                    ) : showCaptcha ? (
+                      <>
+                        <Zap className="h-4 w-4" /> Verify Email
+                      </>
+                    ) : (
+                      "Analyze"
+                    )}
                   </button>
                 </div>
                 
-                <div className="flex justify-center sm:justify-start">
-                  <ReCAPTCHA
-                    sitekey="6LdlQb8sAAAAAHT_sU80INx7dXcZAAgFjFDWyhef"
-                    onChange={handleCaptchaChange}
-                    theme="light"
-                  />
-                </div>
+                <AnimatePresence>
+                  {showCaptcha && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -8, height: 0 }}
+                      animate={{ opacity: 1, y: 0, height: "auto" }}
+                      exit={{ opacity: 0, y: -8, height: 0 }}
+                      transition={{ duration: 0.3 }}
+                      className="flex flex-col gap-3 justify-center sm:justify-start"
+                    >
+                      {/* Backend processing indicator */}
+                      <AnimatePresence>
+                        {backendLoading && captchaDone && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -4 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -4 }}
+                            className="flex items-center gap-2 text-xs text-muted-foreground px-1"
+                          >
+                            <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                            <span>Verifying email...</span>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+
+                      <motion.div
+                        initial={{ scale: 0.95 }}
+                        animate={{ scale: 1 }}
+                        transition={{ duration: 0.3, delay: 0.1 }}
+                        className="inline-block"
+                      >
+                        <ReCAPTCHA
+                          sitekey="6LdlQb8sAAAAAHT_sU80INx7dXcZAAgFjFDWyhef"
+                          onChange={handleCaptchaChange}
+                          theme="light"
+                        />
+                      </motion.div>
+
+                      {/* Don't want captcha - register link */}
+                      <motion.div
+                        initial={{ opacity: 0, y: 4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3, delay: 0.2 }}
+                        className="text-center"
+                      >
+                        <p className="text-xs text-muted-foreground">
+                          Don't want captcha?{" "}
+                          <Link href="/signup" className="text-primary font-semibold hover:underline transition-all">
+                            Register here
+                          </Link>
+                        </p>
+                      </motion.div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             )}
-            {error && <p className="text-xs text-red-400 mt-3">{error}</p>}
+            <AnimatePresence>
+              {error && (
+                <motion.p
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  className="text-xs text-red-400 mt-3"
+                >
+                  {error}
+                </motion.p>
+              )}
+            </AnimatePresence>
           </motion.div>
 
           {/* ── Result ── */}

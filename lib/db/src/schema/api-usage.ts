@@ -11,6 +11,7 @@ export const apiUsageTable = pgTable("api_usage", {
   domain: text("domain"),
   isDisposable: boolean("is_disposable"),
   reputationScore: integer("reputation_score"),
+  source: text("source"),
   timestamp: timestamp("timestamp").notNull().defaultNow(),
 });
 

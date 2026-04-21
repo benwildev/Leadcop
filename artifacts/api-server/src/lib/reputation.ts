@@ -22,6 +22,25 @@ const ROLE_ACCOUNTS = new Set([
   "hi", "hello", "desk", "customer", "press", "account", "accounts",
 ]);
 
+const COMMON_TYPOS: Record<string, string> = {
+  "gamil.com": "gmail.com",
+  "gmal.com": "gmail.com",
+  "gmial.com": "gmail.com",
+  "hotmai.com": "hotmail.com",
+  "hotmial.com": "hotmail.com",
+  "yaho.com": "yahoo.com",
+  "yahooo.com": "yahoo.com",
+  "yhaoo.com": "yahoo.com",
+  "outook.com": "outlook.com",
+  "icloud.co": "icloud.com",
+  "protonmaill.com": "protonmail.com",
+};
+
+export function getDomainSuggestion(domain: string): string | null {
+  const lower = domain.toLowerCase();
+  return COMMON_TYPOS[lower] || null;
+}
+
 export interface ReputationChecks {
   isDisposable: boolean;
   hasMx: boolean | undefined;

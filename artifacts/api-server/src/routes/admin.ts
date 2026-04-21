@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { Readable } from "stream";
-import { db, usersTable, apiUsageTable, domainsTable, upgradeRequestsTable, planConfigsTable, userWebsitesTable, userPagesTable, paymentSettingsTable, bulkJobsTable } from "@workspace/db";
+import { db, usersTable, apiUsageTable, domainsTable, whitelistTable, upgradeRequestsTable, planConfigsTable, userWebsitesTable, userPagesTable, paymentSettingsTable, bulkJobsTable } from "@workspace/db";
 import { eq, sql, count, desc, and, gte } from "drizzle-orm";
 import { z } from "zod";
 import { requireAdmin } from "../middlewares/session.js";
@@ -122,6 +122,37 @@ router.post("/users/:userId/revoke-key", requireAdmin, async (req: Request, res:
   await db.update(usersTable).set({ apiKey: newKey }).where(eq(usersTable.id, userId));
 
   res.json({ message: "API key revoked and regenerated", apiKey: newKey.slice(0, 8) + "••••••••••••••••••••••••" });
+});
+
+router.get("/users/:userId/details", requireAdmin, async (req, res) => {
+  const userId = parseInt(String(req.params.userId || "0"));
+  if (isNaN(userId)) {
+    res.status(400).json({ error: "Invalid user ID" });
+    return;
+  }
+
+  const websites = await db
+    .select()
+    .from(userWebsitesTable)
+    .where(eq(userWebsitesTable.userId, userId))
+    .orderBy(desc(userWebsitesTable.createdAt));
+
+  const pages = await db
+    .select()
+    .from(userPagesTable)
+    .where(eq(userPagesTable.userId, userId))
+    .orderBy(desc(userPagesTable.createdAt));
+
+  res.json({
+    websites: websites.map((w) => ({
+      ...w,
+      createdAt: w.createdAt.toISOString(),
+    })),
+    pages: pages.map((p) => ({
+      ...p,
+      createdAt: p.createdAt.toISOString(),
+    })),
+  });
 });
 
 router.get("/upgrade-requests", requireAdmin, async (req, res) => {
@@ -415,13 +446,58 @@ router.post("/domains", requireAdmin, async (req: Request, res: Response) => {
 
 router.delete("/domains/:domain", requireAdmin, async (req: Request, res: Response) => {
   const domain = (req.params.domain as string).toLowerCase();
+  const { whitelist = false } = req.query as { whitelist?: string | boolean };
+  
   const deleted = await db.delete(domainsTable).where(eq(domainsTable.domain, domain)).returning();
   if (deleted.length === 0) {
     res.status(404).json({ error: "Domain not found" });
     return;
   }
+  
+  if (whitelist === "true" || whitelist === true) {
+    await db.insert(whitelistTable).values({ domain }).onConflictDoNothing();
+  }
+  
   const { loadDomainCache } = await import("../lib/domain-cache.js");
   await loadDomainCache();
+  res.json({ ok: true });
+});
+
+router.get("/whitelist", requireAdmin, async (req, res) => {
+  const list = await db.select().from(whitelistTable).orderBy(desc(whitelistTable.createdAt));
+  res.json({ whitelist: list });
+});
+
+router.post("/whitelist", requireAdmin, async (req: Request, res: Response) => {
+  const { domain } = req.body as { domain?: string };
+  if (!domain || typeof domain !== "string" || domain.trim().length === 0) {
+    res.status(400).json({ error: "domain is required" });
+    return;
+  }
+  const clean = domain.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+  
+  try {
+    // Add to whitelist
+    await db.insert(whitelistTable).values({ domain: clean }).onConflictDoNothing();
+    // Remove from blocklist if present
+    await db.delete(domainsTable).where(eq(domainsTable.domain, clean));
+    
+    const { loadDomainCache } = await import("../lib/domain-cache.js");
+    await loadDomainCache();
+    
+    res.status(201).json({ domain: clean });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to whitelist domain" });
+  }
+});
+
+router.delete("/whitelist/:domain", requireAdmin, async (req: Request, res: Response) => {
+  const domain = (req.params.domain as string).toLowerCase();
+  await db.delete(whitelistTable).where(eq(whitelistTable.domain, domain));
+  
+  const { loadDomainCache } = await import("../lib/domain-cache.js");
+  await loadDomainCache();
+  
   res.json({ ok: true });
 });
 

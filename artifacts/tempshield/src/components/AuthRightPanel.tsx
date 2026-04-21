@@ -48,10 +48,7 @@ export default function AuthRightPanel() {
           custom={0} variants={fadeUp} initial="hidden" animate="show"
           className="flex items-center gap-3 mb-7"
         >
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center shadow-md shadow-purple-500/30 flex-shrink-0">
-            <Shield className="w-4.5 h-4.5 text-white w-[18px] h-[18px]" />
-          </div>
-          <span className="font-heading text-lg font-bold text-gray-800">LeadCop</span>
+          
         </motion.div>
 
         {/* Headline */}

@@ -66,48 +66,28 @@ async function detectCatchAll(
 ): Promise<boolean | null> {
   if (mxRecords.length === 0) return null;
 
-  // Generate multiple random test addresses to increase detection accuracy
+  // Only test against the PRIMARY MX server (lowest priority number)
+  const primaryMx = mxRecords[0];
+
+  // Run 2 random-address probes in parallel against the primary MX
   const testAddresses = [
     `ts_test_${Math.random().toString(36).slice(2, 8)}@${domain}`,
     `ts_probe_${Math.random().toString(36).slice(2, 8)}@${domain}`,
-    `noreply_${Math.random().toString(36).slice(2, 8)}@${domain}`,
   ];
 
-  // Test against first 2 MX servers for redundancy
-  const mxServersToTest = mxRecords.slice(0, 2);
-  const results: Map<string, number> = new Map(); // Address -> code mapping
+  const codes = await Promise.all(
+    testAddresses.map(addr => testSingleSmtpRcpt(primaryMx.exchange, addr))
+  );
 
-  for (const testAddr of testAddresses) {
-    for (const mxRecord of mxServersToTest) {
-      const responseCode = await testSingleSmtpRcpt(mxRecord.exchange, testAddr);
-      if (responseCode !== null) {
-        results.set(`${testAddr}_${mxRecord.exchange}`, responseCode);
-      }
-    }
-  }
+  const accepted = codes.filter(c => c === 250 || c === 251).length;
+  const rejected = codes.filter(c => c === 550 || c === 553).length;
+  const total = accepted + rejected;
+  if (total === 0) return null;
 
-  if (results.size === 0) return null; // Couldn't test any addresses
-
-  // Analyze results: if ANY random test address got 250/251, it's likely catch-all
-  let acceptedCount = 0;
-  let rejectedCount = 0;
-
-  for (const code of results.values()) {
-    if (code === 250 || code === 251) acceptedCount++;
-    else if (code === 550 || code === 553) rejectedCount++;
-  }
-
-  // Heuristics:
-  // - If majority of tests were accepted (250/251), it's catch-all
-  // - If majority were rejected (550/553), it's NOT catch-all
-  // - If mixed or unclear, return null (unknown)
-  const totalTests = acceptedCount + rejectedCount;
-  if (totalTests === 0) return null;
-
-  const acceptanceRate = acceptedCount / totalTests;
-  if (acceptanceRate >= 0.7) return true;   // 70%+ acceptance = catch-all
-  if (acceptanceRate <= 0.3) return false;  // 70%+ rejection = not catch-all
-  return null;                               // Unclear results
+  const acceptanceRate = accepted / total;
+  if (acceptanceRate >= 0.7) return true;
+  if (acceptanceRate <= 0.3) return false;
+  return null;
 }
 
 /**
@@ -116,7 +96,7 @@ async function detectCatchAll(
 function testSingleSmtpRcpt(host: string, testEmail: string): Promise<number | null> {
   return new Promise((resolve) => {
     const socket = net.createConnection(25, host);
-    socket.setTimeout(8000);
+    socket.setTimeout(5000);  // 🔒 5 seconds timeout (faster failure detection)
 
     let buffer = "";
     let stage = 0;
@@ -189,7 +169,11 @@ async function performHandshakeWithRetry(
     const mxRecord = records[mxIndex];
     result.mxRecords = records.slice(0, mxIndex + 1).map(r => r.exchange);
 
-    const mxResult = await attemptHandshake(mxRecord.exchange, email, domain, result);
+    // Run SMTP handshake AND catch-all detection IN PARALLEL — saves ~5-8s
+    const [mxResult, catchAllResult] = await Promise.all([
+      attemptHandshake(mxRecord.exchange, email, domain, result),
+      detectCatchAll(domain, records),
+    ]);
 
     // If we got a definitive answer (not greylisted), use it
     if (!mxResult.greylisted) {
@@ -198,11 +182,10 @@ async function performHandshakeWithRetry(
       result.isDeliverable = mxResult.isDeliverable;
       result.hasInboxFull = mxResult.hasInboxFull;
       result.isDisabled = mxResult.isDisabled;
-      
-      // Use advanced catch-all detection system if initial test was inconclusive
-      const catchAllResult = await detectCatchAll(domain, records);
+
+      // Prefer the dedicated catch-all result, fall back to inline check
       result.isCatchAll = catchAllResult ?? mxResult.isCatchAll;
-      
+
       return result;
     }
 
@@ -302,8 +285,8 @@ async function attemptHandshake(
   };
 
   return new Promise((resolve) => {
-    const socket = net.createConnection(25, host);
-    socket.setTimeout(10000); // Increased timeout to handle slow servers
+    const socket = net.createConnection({ host, port: 25, timeout: 10000 });
+    socket.setTimeout(12000);  // 12s per command — enough for slow servers like Hostinger
 
     let buffer = "";
     let stage = 0;
@@ -314,7 +297,7 @@ async function attemptHandshake(
     };
 
     const sendCommand = (cmd: string) => {
-      socket.setTimeout(10000); // Reset timeout for each command
+      socket.setTimeout(12000);  // Reset timeout for each command
       socket.write(cmd + "\r\n");
     };
 
@@ -358,13 +341,18 @@ async function attemptHandshake(
           // 550 at stage 3 = mailbox doesn't exist (not deliverable)
           // 550 at stage 4 = not catch-all (expected)
         }
-        if (stage < 4) {
+        // 5xx hard error — finish immediately
+        if (stage < 3) {
           finish();
           return;
         }
+        // stage 3: got a 5xx on RCPT TO for real address = not deliverable, finish
+        sendCommand("QUIT");
+        finish();
+        return;
       }
 
-      // SMTP state machine
+      // SMTP state machine — stages 0-3 only (catch-all is done separately in parallel)
       if (stage === 0 && code === 220) {
         result.canConnect = true;
         sendCommand("EHLO leadcop.io");
@@ -380,14 +368,7 @@ async function attemptHandshake(
         if (code === 250 || code === 251) {
           result.isDeliverable = true;
         }
-        // Catch-all check with random address
-        const randomEmail = `ts_verify_${Math.random().toString(36).slice(2, 10)}@${domain}`;
-        sendCommand(`RCPT TO:<${randomEmail}>`);
-        stage = 4;
-      } else if (stage === 4) {
-        if (code === 250 || code === 251) {
-          result.isCatchAll = true;
-        }
+        // Done — no inline catch-all probe, detectCatchAll runs in parallel
         sendCommand("QUIT");
         finish();
       }

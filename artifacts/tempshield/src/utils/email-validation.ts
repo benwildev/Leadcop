@@ -22,7 +22,7 @@ export function isValidEmail(email: string): boolean {
 }
 
 export function extractDomain(email: string): string {
-  return email.split("@")[1]?.toLowerCase() || "";
+  return email.split("@")[1]?.toLowerCase().trim() || "";
 }
 
 export function isKnownDisposable(email: string): boolean {

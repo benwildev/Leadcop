@@ -18,7 +18,7 @@ async function migrate() {
       tagline      TEXT NOT NULL DEFAULT 'Block Fake Emails. Protect Your Platform.',
       logo_url     TEXT,
       favicon_url  TEXT,
-      global_meta_title       TEXT NOT NULL DEFAULT 'TempShield — Disposable Email Detection API',
+      global_meta_title       TEXT NOT NULL DEFAULT 'LeadCop — Disposable Email Detection API',
       global_meta_description TEXT NOT NULL DEFAULT 'Industry-leading disposable email detection API. Real-time verification with 99.9% accuracy.',
       footer_text  TEXT,
       updated_at   TIMESTAMP NOT NULL DEFAULT NOW()

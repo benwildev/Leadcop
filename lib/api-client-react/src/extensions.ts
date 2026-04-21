@@ -68,6 +68,11 @@ export interface AdminUsersFullResponse {
   total: number;
 }
 
+export interface AdminUserDetails {
+  websites: UserWebsite[];
+  pages: UserPage[];
+}
+
 export interface AdminApiKey {
   userId: number;
   name: string;
@@ -262,6 +267,18 @@ export function useAdminGetApiKeys(options?: { query?: UseQueryOptions<AdminApiK
   return useQuery({
     queryKey: ["/api/admin/api-keys"],
     queryFn: () => customFetch<AdminApiKeysResponse>("/api/admin/api-keys"),
+    ...options?.query,
+  });
+}
+
+export function useAdminGetUserDetails(
+  userId: number,
+  options?: { query?: Omit<UseQueryOptions<AdminUserDetails>, "queryKey" | "queryFn"> }
+) {
+  return useQuery({
+    queryKey: [`/api/admin/users/${userId}/details`],
+    queryFn: () => customFetch<AdminUserDetails>(`/api/admin/users/${userId}/details`),
+    enabled: userId > 0,
     ...options?.query,
   });
 }
@@ -569,6 +586,58 @@ export function useAdminAddDomain(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ domain }),
       }),
+    ...options,
+  });
+}
+// ─── Whitelist ──────────────────────────────────────────────────────────────
+
+export interface WhitelistEntry {
+  id: number;
+  domain: string;
+  createdAt: string;
+}
+
+export interface WhitelistResponse {
+  whitelist: WhitelistEntry[];
+}
+
+export function useAdminGetWhitelist(options?: { query?: UseQueryOptions<WhitelistResponse> }) {
+  return useQuery({
+    queryKey: ["/api/admin/whitelist"],
+    queryFn: () => customFetch<WhitelistResponse>("/api/admin/whitelist"),
+    ...options?.query,
+  });
+}
+
+export function useAdminAddWhitelist(
+  options?: UseMutationOptions<{ domain: string }, Error, string>
+) {
+  return useMutation({
+    mutationFn: (domain: string) =>
+      customFetch<{ domain: string }>("/api/admin/whitelist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domain }),
+      }),
+    ...options,
+  });
+}
+
+export function useAdminDeleteWhitelist(options?: UseMutationOptions<{ ok: boolean }, Error, string>) {
+  return useMutation({
+    mutationFn: (domain: string) =>
+      customFetch<{ ok: boolean }>(`/api/admin/whitelist/${domain}`, { method: "DELETE" }),
+    ...options,
+  });
+}
+
+/**
+ * Enhanced domain deletion with optional whitelisting
+ */
+export function useAdminDeleteDomain(options?: UseMutationOptions<{ ok: boolean }, Error, { domain: string; whitelist?: boolean }>) {
+  return useMutation({
+    mutationFn: ({ domain, whitelist }) =>
+      customFetch<{ ok: boolean }>(`/api/admin/domains/${domain}${whitelist ? "?whitelist=true" : ""}`, { method: "DELETE" }),
     ...options,
   });
 }

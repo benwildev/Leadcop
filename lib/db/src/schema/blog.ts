@@ -10,6 +10,7 @@ export const blogPostsTable = pgTable("blog_posts", {
   content: text("content").notNull().default(""),
   author: text("author").notNull().default("LeadCop Team"),
   coverImage: text("cover_image"),
+  coverImageAlt: text("cover_image_alt"),
   tags: text("tags").notNull().default(""),
   status: blogPostStatusEnum("status").notNull().default("DRAFT"),
   seoTitle: text("seo_title"),

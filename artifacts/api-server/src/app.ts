@@ -1,6 +1,7 @@
 import express, { type Express } from "express";
 import cors, { type CorsOptions } from "cors";
 import cookieParser from "cookie-parser";
+import compression from "compression";
 import pinoHttp from "pino-http";
 import router from "./routes/index.js";
 import { startBulkWorker } from "./routes/bulk-jobs.js";
@@ -11,6 +12,47 @@ import { db, usersTable, paymentSettingsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { getPlanConfig } from "./lib/auth.js";
 import Stripe from "stripe";
+
+// 🔒 Stripe configuration cache
+interface StripeConfig {
+  secretKey: string;
+  webhookSecret: string;
+  expiresAt: number;
+}
+let stripeConfigCache: StripeConfig | null = null;
+const STRIPE_CONFIG_CACHE_TTL_MS = 60000; // 1 minute TTL
+
+async function getStripeConfig(): Promise<StripeConfig | null> {
+  const now = Date.now();
+  
+  // Return cached config if still valid
+  if (stripeConfigCache && stripeConfigCache.expiresAt > now) {
+    return stripeConfigCache;
+  }
+
+  try {
+    const [settings] = await db
+      .select()
+      .from(paymentSettingsTable)
+      .where(eq(paymentSettingsTable.id, 1))
+      .limit(1);
+
+    if (!settings?.stripeSecretKey) {
+      return null;
+    }
+
+    stripeConfigCache = {
+      secretKey: settings.stripeSecretKey,
+      webhookSecret: settings.stripeWebhookSecret || "",
+      expiresAt: now + STRIPE_CONFIG_CACHE_TTL_MS,
+    };
+
+    return stripeConfigCache;
+  } catch (err) {
+    logger.error({ err }, "Failed to load Stripe config from database");
+    return null;
+  }
+}
 
 const app: Express = express();
 
@@ -65,26 +107,52 @@ const corsMiddleware = cors((req: any, callback: (err: Error | null, options?: C
 
 app.use(corsMiddleware);
 
-// Stripe webhook — must come before express.json() so raw body is preserved
-app.post("/api/webhooks/stripe", express.raw({ type: "application/json" }), async (req, res) => {
-  const [settings] = await db.select().from(paymentSettingsTable).where(eq(paymentSettingsTable.id, 1)).limit(1);
+// 🔒 Security Headers Middleware
+app.use((req, res, next) => {
+  // Prevent MIME type sniffing
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  
+  // Prevent clickjacking
+  res.setHeader("X-Frame-Options", "DENY");
+  
+  // Enable XSS protection in older browsers
+  res.setHeader("X-XSS-Protection", "1; mode=block");
+  
+  // Control referrer information
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  
+  // Prevent HSTS for HTTPS - enforce secure connections (set maxAge based on your deployment strategy)
+  // res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  
+  // Content Security Policy - restricts sources of content
+  res.setHeader(
+    "Content-Security-Policy",
+    "default-src 'self'; script-src 'self' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://; frame-src https://www.google.com/recaptcha/; object-src 'none';"
+  );
+  
+  next();
+});
 
-  if (!settings?.stripeSecretKey) {
+app.post("/api/webhooks/stripe", express.raw({ type: "application/json" }), async (req, res) => {
+  // 🔒 Use cached Stripe config (reduces DB load)
+  const stripeConfig = await getStripeConfig();
+
+  if (!stripeConfig) {
     res.status(400).json({ error: "Stripe not configured" });
     return;
   }
 
-  const stripe = new Stripe(settings.stripeSecretKey);
+  const stripe = new Stripe(stripeConfig.secretKey);
   const sig = req.headers["stripe-signature"];
 
-  if (!settings.stripeWebhookSecret || !sig) {
+  if (!stripeConfig.webhookSecret || !sig) {
     res.status(400).json({ error: "Missing webhook secret or signature" });
     return;
   }
 
   let event: Stripe.Event;
   try {
-    event = stripe.webhooks.constructEvent(req.body as Buffer, sig, settings.stripeWebhookSecret);
+    event = stripe.webhooks.constructEvent(req.body as Buffer, sig, stripeConfig.webhookSecret);
   } catch (err) {
     logger.warn({ err }, "Stripe webhook signature verification failed");
     res.status(400).json({ error: "Invalid signature" });
@@ -110,6 +178,7 @@ app.post("/api/webhooks/stripe", express.raw({ type: "application/json" }), asyn
   res.json({ received: true });
 });
 
+app.use(compression());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
@@ -119,16 +188,27 @@ app.use("/api", router);
 
 import path from "path";
 const frontendPath = path.resolve(import.meta.dirname, "../../tempshield/dist/public");
-app.use(express.static(frontendPath));
+app.use(express.static(frontendPath, {
+  setHeaders: (res, filePath) => {
+    if (filePath.includes("/assets/")) {
+      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    } else {
+      res.setHeader("Cache-Control", "public, max-age=3600");
+    }
+  }
+}));
 app.use((req, res, next) => {
   if (req.originalUrl.startsWith("/api")) return next();
   res.sendFile(path.join(frontendPath, "index.html"));
 });
+
+import { startScheduler } from "./lib/scheduler.js";
 
 loadDomainCache().catch((err) => {
   logger.error({ err }, "Failed to load domain cache on startup");
 });
 
 startBulkWorker();
+startScheduler();
 
 export default app;

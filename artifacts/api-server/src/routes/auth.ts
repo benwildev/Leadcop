@@ -12,12 +12,12 @@ const router = Router();
 
 const registerSchema = z.object({
   name: z.string().min(1).max(100),
-  email: z.string().email(),
+  email: z.string().trim().toLowerCase().pipe(z.string().email()),
   password: z.string().min(6),
 });
 
 const loginSchema = z.object({
-  email: z.string().email(),
+  email: z.string().trim().toLowerCase(),
   password: z.string().min(1),
 });
 
@@ -30,7 +30,7 @@ router.post("/register", async (req, res) => {
 
   const { name, email, password } = result.data;
 
-  const domain = email.split("@")[1]?.toLowerCase() ?? "";
+  const domain = email.split("@")[1]?.trim().toLowerCase() ?? "";
   if (isDisposableDomain(domain)) {
     res.status(400).json({ error: "Disposable email addresses are not allowed. Please use a permanent email address." });
     return;

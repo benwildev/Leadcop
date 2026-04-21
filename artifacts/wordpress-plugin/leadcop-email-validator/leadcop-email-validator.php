@@ -48,8 +48,10 @@ function leadcop_validate_email( string $email ) {
 		[
 			'timeout' => 10,
 			'headers' => [
-				'Content-Type'  => 'application/json',
-				'Authorization' => 'Bearer ' . $api_key,
+				'Content-Type'      => 'application/json',
+				'Authorization'     => 'Bearer ' . $api_key,
+				'X-LeadCop-Source'  => 'wordpress-plugin',
+				'User-Agent'        => 'LeadCop-WP/' . LEADCOP_VERSION,
 			],
 			'body' => wp_json_encode( [ 'email' => $email ] ),
 		]
@@ -439,6 +441,28 @@ function leadcop_register_assets(): void {
 	);
 }
 
+add_action( 'wp_footer', 'leadcop_inject_frontend_script' );
+
+function leadcop_inject_frontend_script(): void {
+	$api_key  = leadcop_get_option( 'api_key' );
+	$base_url = rtrim( leadcop_get_option( 'api_base_url', 'https://leadcop.io' ), '/' );
+
+	if ( empty( $api_key ) ) {
+		return;
+	}
+
+	$script_url = $base_url . '/temp-email-validator.js';
+	$error_msg  = esc_attr( leadcop_error_message() );
+
+	printf(
+		'<script src="%s" data-api-key="%s" data-api-url="%s" data-error-message="%s"></script>' . "\n",
+		esc_url( $script_url ),
+		esc_attr( $api_key ),
+		esc_url( $base_url ),
+		$error_msg
+	);
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 // Admin settings page
 // ──────────────────────────────────────────────────────────────────────────────
@@ -453,6 +477,66 @@ function leadcop_admin_menu(): void {
 		'leadcop-settings',
 		'leadcop_settings_page'
 	);
+}
+
+add_action( 'admin_notices', 'leadcop_admin_notices' );
+
+function leadcop_admin_notices(): void {
+	if ( ! isset( $_GET['page'] ) || $_GET['page'] !== 'leadcop-settings' ) {
+		return;
+	}
+
+	$api_key  = leadcop_get_option( 'api_key' );
+	$base_url = rtrim( leadcop_get_option( 'api_base_url', 'https://leadcop.io' ), '/' );
+
+	if ( empty( $api_key ) ) {
+		echo '<div class="notice notice-warning"><p>' . esc_html__( 'Please enter your LeadCop API key to enable validation.', 'leadcop' ) . '</p></div>';
+		return;
+	}
+
+	// Test API connection with the Origin and Referer headers to simulate frontend scripts.
+	// We use an invalid email address ('ping') so it fails validation before deducting a credit.
+	$test_path = '/leadcop-plugin-setup-test';
+	$response = wp_remote_post(
+		$base_url . '/api/check-email',
+		[
+			'timeout' => 5,
+			'headers' => [
+				'Content-Type'  => 'application/json',
+				'Authorization' => 'Bearer ' . $api_key,
+				'Origin'        => home_url(),
+				'Referer'       => home_url( $test_path ),
+			],
+			'body' => wp_json_encode( [ 'email' => 'ping' ] ),
+		]
+	);
+
+	if ( is_wp_error( $response ) ) {
+		echo '<div class="notice notice-error"><p>' . esc_html__( 'Could not connect to LeadCop API. Error: ', 'leadcop' ) . esc_html( $response->get_error_message() ) . '</p></div>';
+		return;
+	}
+
+	$code = wp_remote_retrieve_response_code( $response );
+	$body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+	if ( $code === 401 ) {
+		echo '<div class="notice notice-error"><p>' . esc_html__( 'LeadCop API Error: Invalid API key.', 'leadcop' ) . '</p></div>';
+	} elseif ( $code === 403 ) {
+		$error_msg = $body['error'] ?? 'Access Denied';
+		// If the error mentions our specific test path, it means Origin succeeded but Page Restriction is active!
+		if ( strpos( $error_msg, $test_path ) !== false ) {
+			if ( isset( $_GET['settings-updated'] ) && $_GET['settings-updated'] ) {
+				echo '<div class="notice notice-warning is-dismissible"><p><strong>' . esc_html__( 'LeadCop Connected, but Page Restrictions are ON:', 'leadcop' ) . '</strong> ' . esc_html__( 'Your API key and Origin are correct, but you have "Protected Pages" enabled in your dashboard. Make sure you add the actual URLs of your forms (e.g. /contact/) to your dashboard, otherwise frontend validation will be blocked!', 'leadcop' ) . '</p></div>';
+			}
+		} else {
+			echo '<div class="notice notice-error"><p><strong>' . esc_html__( 'LeadCop Plugin Setup Incomplete:', 'leadcop' ) . '</strong> ' . esc_html( $error_msg ) . '</p></div>';
+		}
+	} elseif ( $code === 400 || $code === 200 ) {
+		// 400 means origin, referer and API key checks passed natively, but the 'ping' email failed validation as planned.
+		if ( isset( $_GET['settings-updated'] ) && $_GET['settings-updated'] ) {
+			echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'LeadCop API connection successful! Your website is fully protected.', 'leadcop' ) . '</p></div>';
+		}
+	}
 }
 
 add_action( 'admin_init', 'leadcop_register_settings' );

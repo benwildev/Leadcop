@@ -282,22 +282,28 @@ export default function OverviewTab({
         </p>
       </motion.div>
 
-      {/* Stat Pills */}
+      {/* Stat Bento Grid */}
       {data.counts && (
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="glass-card rounded-2xl p-5 lg:col-span-3">
-          <div className="grid grid-cols-3 divide-x divide-border">
-            {[
-              { label: "Named API Keys", value: data.counts.namedApiKeys, icon: Key },
-              { label: "Webhooks", value: data.counts.webhooks, icon: Webhook },
-              { label: "Blocklisted Domains", value: data.counts.blocklist, icon: ShieldBan },
-            ].map(({ label, value, icon: Icon }) => (
-              <div key={label} className="flex flex-col items-center gap-1 px-4 py-2">
-                <Icon className="h-4 w-4 text-primary mb-1" />
-                <span className="font-heading text-2xl font-bold text-foreground">{value}</span>
-                <span className="text-xs text-muted-foreground">{label}</span>
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }} 
+          animate={{ opacity: 1, y: 0 }} 
+          transition={{ delay: 0.15 }} 
+          className="lg:col-span-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
+        >
+          {[
+            { label: "Named API Keys", value: data.counts.namedApiKeys, icon: Key, color: "text-indigo-500", bg: "bg-indigo-500/10" },
+            { label: "Webhooks Enabled", value: data.counts.webhooks, icon: Webhook, color: "text-purple-500", bg: "bg-purple-500/10" },
+            { label: "Blocklisted Domains", value: data.counts.blocklist, icon: ShieldBan, color: "text-rose-500", bg: "bg-rose-500/10" },
+            { label: "Total Protected", value: data.user.requestCount, icon: CheckCircle2, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+          ].map(({ label, value, icon: Icon, color, bg }) => (
+            <div key={label} className="glass-card rounded-2xl p-4 flex flex-col items-center text-center transition-transform hover:scale-[1.02]">
+              <div className={`mb-3 p-2 rounded-xl ${bg}`}>
+                <Icon className={`h-4 w-4 ${color}`} />
               </div>
-            ))}
-          </div>
+              <span className="font-heading text-2xl font-bold text-foreground">{value.toLocaleString()}</span>
+              <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mt-1">{label}</span>
+            </div>
+          ))}
         </motion.div>
       )}
 

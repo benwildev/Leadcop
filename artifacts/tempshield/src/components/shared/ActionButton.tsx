@@ -2,10 +2,11 @@ import React from "react";
 import { Loader2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-type Variant = "primary" | "ghost" | "danger" | "outline";
+type Variant = "primary" | "secondary" | "ghost" | "danger" | "outline";
 
 const VARIANT_CLASSES: Record<Variant, string> = {
   primary: "bg-primary text-primary-foreground hover:bg-primary/90",
+  secondary: "bg-white/10 text-white border border-white/10 hover:bg-white/20",
   ghost: "bg-primary/15 text-primary hover:bg-primary/25",
   danger: "text-muted-foreground hover:text-red-400",
   outline: "border border-border bg-muted/30 text-muted-foreground hover:text-foreground hover:bg-muted",

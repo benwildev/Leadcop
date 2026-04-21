@@ -55,6 +55,7 @@ router.get("/dashboard", requireAuth, async (req, res) => {
       domain: apiUsageTable.domain,
       isDisposable: apiUsageTable.isDisposable,
       reputationScore: apiUsageTable.reputationScore,
+      source: apiUsageTable.source,
       timestamp: apiUsageTable.timestamp,
     })
     .from(apiUsageTable)
@@ -482,6 +483,7 @@ router.get("/usage", requireAuth, async (req, res) => {
       domain: apiUsageTable.domain,
       isDisposable: apiUsageTable.isDisposable,
       reputationScore: apiUsageTable.reputationScore,
+      source: apiUsageTable.source,
       timestamp: apiUsageTable.timestamp,
     })
     .from(apiUsageTable)
@@ -515,6 +517,7 @@ router.get("/audit-log", requireAuth, async (req, res) => {
       domain: apiUsageTable.domain,
       isDisposable: apiUsageTable.isDisposable,
       reputationScore: apiUsageTable.reputationScore,
+      source: apiUsageTable.source,
       timestamp: apiUsageTable.timestamp,
     })
     .from(apiUsageTable)

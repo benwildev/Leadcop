@@ -15,3 +15,4 @@ export * from "./bulk-jobs";
 export * from "./support";
 export * from "./blog";
 export * from "./newsletter";
+export * from "./whitelist";
