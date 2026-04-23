@@ -5,6 +5,7 @@ import { Shield, ArrowRight, Loader2, Eye, EyeOff } from "lucide-react";
 import { motion } from "framer-motion";
 import AuthRightPanel from "@/components/AuthRightPanel";
 import { useSiteSettings } from "@/hooks/use-site-settings";
+import { Logo } from "./Logo";
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -43,18 +44,7 @@ export default function LoginPage() {
             href="/"
             className="inline-block hover:opacity-80 transition-opacity"
           >
-            {siteSettings.logoUrl && !logoError ? (
-              <img
-                src={siteSettings.logoUrl}
-                alt={siteSettings.siteTitle}
-                className="h-12 w-auto max-w-[180px] object-contain invert"
-                onError={() => setLogoError(true)}
-              />
-            ) : (
-              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center shadow-lg shadow-purple-500/30">
-                <Shield className="w-6 h-6 text-white" />
-              </div>
-            )}
+          <Logo size={48} invert={true} />
           </Link>
         </div>
 

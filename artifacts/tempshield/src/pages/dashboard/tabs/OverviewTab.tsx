@@ -9,7 +9,6 @@ import { format, parseISO } from "date-fns";
 import { Link } from "wouter";
 import { type DashboardDataWithPlanConfig } from "@workspace/api-client-react";
 import ReputationBadge from "@/components/ReputationBadge";
-import VerificationModal, { type VerificationResult } from "@/components/VerificationModal";
 import { maskEmail } from "../utils";
 
 const ONBOARDING_KEY = "ts_onboarding_done";
@@ -23,7 +22,6 @@ function GettingStartedChecklist({ apiKey, userId }: { apiKey: string; userId: n
   const [steps, setSteps] = useState<Record<string, boolean>>({
     key: initial.key ?? false,
     script: initial.script ?? false,
-    test: initial.test ?? false,
   });
   const [keyCopied, setKeyCopied] = useState(false);
 
@@ -35,7 +33,7 @@ function GettingStartedChecklist({ apiKey, userId }: { apiKey: string; userId: n
     });
   };
 
-  const allDone = steps.key && steps.script && steps.test;
+  const allDone = steps.key && steps.script;
   if (allDone) return null;
 
   const handleCopyKey = () => {
@@ -74,20 +72,6 @@ function GettingStartedChecklist({ apiKey, userId }: { apiKey: string; userId: n
         </Link>
       ),
     },
-    {
-      id: "test",
-      label: "Test with a real email",
-      sublabel: "Verify any email address to confirm your integration is working.",
-      action: (
-        <Link
-          href="/verify"
-          onClick={() => mark("test")}
-          className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg text-xs font-semibold transition-colors"
-        >
-          <Zap className="w-3.5 h-3.5" /> Verify email
-        </Link>
-      ),
-    },
   ];
 
   const doneCount = Object.values(steps).filter(Boolean).length;
@@ -105,7 +89,7 @@ function GettingStartedChecklist({ apiKey, userId }: { apiKey: string; userId: n
           </div>
           <div>
             <h2 className="font-heading text-base font-semibold text-foreground">Getting Started</h2>
-            <p className="text-xs text-muted-foreground">{doneCount} of 3 steps complete</p>
+            <p className="text-xs text-muted-foreground">{doneCount} of 2 steps complete</p>
           </div>
         </div>
         <div className="flex gap-1.5">
@@ -154,10 +138,6 @@ export default function OverviewTab({
   onRegenerate: () => void;
   regenPending: boolean;
 }) {
-  const [verifyEmail, setVerifyEmail] = useState("");
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [verifyResult, setVerifyResult] = useState<VerificationResult | null>(null);
-  const [showModal, setShowModal] = useState(false);
   const [showEmbedScript, setShowEmbedScript] = useState(false);
 
   const chartData = (() => {
@@ -170,34 +150,10 @@ export default function OverviewTab({
     });
   })();
 
-  const handleVerify = async () => {
-    if (!verifyEmail.trim()) return;
-    setIsVerifying(true);
-    try {
-      const res = await fetch("/api/check-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: verifyEmail.trim() }),
-      });
-      const result = await res.json();
-      setVerifyResult(result);
-      setShowModal(true);
-    } catch (err) {
-      alert("Verification failed: " + (err instanceof Error ? err.message : "Network error"));
-    } finally {
-      setIsVerifying(false);
-    }
-  };
+
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <VerificationModal
-        isOpen={showModal}
-        onClose={() => setShowModal(false)}
-        result={verifyResult}
-        email={verifyEmail}
-      />
-
       <GettingStartedChecklist apiKey={data.user.apiKey} userId={data.user.id} />
 
       {/* API Key Card */}
@@ -225,34 +181,6 @@ export default function OverviewTab({
           Include as{" "}
           <code className="rounded bg-muted px-1.5 py-0.5 text-primary text-xs">Authorization: Bearer &lt;key&gt;</code>
           {" "}in your requests.
-        </p>
-      </motion.div>
-
-      {/* Quick Verify */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="glass-card rounded-2xl p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Zap className="h-4 w-4 text-primary" />
-          <h2 className="font-heading text-base font-semibold text-foreground">Quick Verify</h2>
-        </div>
-        <div className="flex gap-2">
-          <input
-            type="email"
-            value={verifyEmail}
-            onChange={(e) => setVerifyEmail(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleVerify()}
-            placeholder="test@example.com"
-            className="flex-1 bg-muted/40 border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all"
-          />
-          <button
-            onClick={handleVerify}
-            disabled={isVerifying || !verifyEmail.trim()}
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-xl transition-all hover:bg-primary/90 flex items-center gap-2 text-sm font-semibold disabled:opacity-50"
-          >
-            {isVerifying ? <Activity className="h-4 w-4 animate-pulse" /> : "Verify"}
-          </button>
-        </div>
-        <p className="text-[10px] text-muted-foreground mt-3">
-          Perform a real-time MX and SMTP check for any email address.
         </p>
       </motion.div>
 

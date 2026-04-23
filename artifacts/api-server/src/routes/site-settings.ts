@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, siteSettingsTable, pageSeoTable } from "@workspace/db";
+import { db, siteSettingsTable, pageSeoTable, planConfigsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { requireAdmin } from "../middlewares/session.js";
@@ -62,6 +62,18 @@ router.get("/site-settings", async (_req, res) => {
     res.json(formatSettings(s));
   } catch {
     res.json({ ...DEFAULTS, updatedAt: new Date().toISOString() });
+  }
+});
+
+router.get("/public/plans", async (_req, res) => {
+  try {
+    const configs = await db
+      .select()
+      .from(planConfigsTable)
+      .orderBy(planConfigsTable.price);
+    res.json({ configs });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch plans" });
   }
 });
 

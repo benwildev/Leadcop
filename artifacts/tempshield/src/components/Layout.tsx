@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Separator } from "@/components/ui/separator";
+import { Logo } from "@/pages/Logo";
 
 function useTheme() {
   const [isDark, setIsDark] = React.useState(() => {
@@ -73,22 +74,9 @@ export function Navbar() {
         {/* Logo */}
         <Link
           href="/"
-          className="flex items-center gap-2 transition-opacity hover:opacity-80"
+          className="flex items-center transition-opacity hover:opacity-80"
         >
-          {siteSettings.logoUrl && !logoError ? (
-            <img
-              src={cloudinaryResize(siteSettings.logoUrl, 160, 32)}
-              alt={siteSettings.siteTitle}
-              width={160}
-              height={32}
-              className="h-8 w-auto max-w-[160px] object-contain invert dark:invert-0"
-              onError={() => setLogoError(true)}
-              loading="eager"
-              decoding="async"
-            />
-          ) : (
-            <Shield className="h-6 w-6 text-primary" />
-          )}
+          <Logo size={40} invert={true} />
         </Link>
 
         {/* Desktop Nav */}
@@ -293,23 +281,8 @@ export function Footer() {
     <footer className="border-t border-border/50 py-10 sm:py-12 px-4 sm:px-6">
       <div className="mx-auto max-w-6xl">
         <div className="flex flex-col items-center gap-6 sm:flex-row sm:justify-between">
-          <div className="flex items-center gap-2">
-            {siteSettings.logoUrl ? (
-              <img
-                src={cloudinaryResize(siteSettings.logoUrl, 100, 20)}
-                alt={siteSettings.siteTitle}
-                width={100}
-                height={20}
-                className="h-5 w-auto invert dark:invert-0"
-                loading="lazy"
-                decoding="async"
-              />
-            ) : (
-              <Shield className="h-5 w-5 text-primary" />
-            )}
-            <span className="font-heading text-sm font-bold text-foreground">
-              {siteSettings.siteTitle}
-            </span>
+          <div className="flex items-center transition-opacity hover:opacity-80">
+            <Logo size={34} invert={true} />
           </div>
           <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-muted-foreground">
             <Link

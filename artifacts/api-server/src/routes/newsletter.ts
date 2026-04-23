@@ -7,6 +7,7 @@ import { logger } from "../lib/logger.js";
 import nodemailer from "nodemailer";
 import crypto from "crypto";
 import { sendNewsletterNewSubscriberNotification } from "../lib/email.js";
+import { performBasicSecurityChecks } from "../lib/reputation.js";
 
 const router = Router();
 
@@ -53,6 +54,13 @@ router.post("/newsletter/subscribe", async (req: Request, res: Response) => {
   }
 
   const { email, name } = result.data;
+
+  // 🔒 Backend Security Gate: Block high-risk signups
+  const security = performBasicSecurityChecks(email);
+  if (!security.allowed) {
+    res.status(400).json({ error: security.reason });
+    return;
+  }
 
   const [existing] = await db
     .select({ id: newsletterSubscribersTable.id, status: newsletterSubscribersTable.status })
@@ -151,7 +159,7 @@ router.get("/admin/newsletter/subscribers", requireAdmin, async (req: Request, r
     .where(eq(newsletterSubscribersTable.status, "ACTIVE"));
 
   res.json({
-    subscribers: subscribers.map(s => ({
+    subscribers: subscribers.map((s: any) => ({
       ...s,
       subscribedAt: s.subscribedAt.toISOString(),
       unsubscribedAt: s.unsubscribedAt?.toISOString() ?? null,
@@ -195,7 +203,7 @@ router.get("/admin/newsletter/campaigns", requireAdmin, async (req: Request, res
     .from(newsletterCampaignsTable)
     .orderBy(desc(newsletterCampaignsTable.createdAt));
 
-  res.json({ campaigns: campaigns.map(c => ({
+  res.json({ campaigns: campaigns.map((c: any) => ({
     ...c,
     sentAt: c.sentAt?.toISOString() ?? null,
     createdAt: c.createdAt.toISOString(),

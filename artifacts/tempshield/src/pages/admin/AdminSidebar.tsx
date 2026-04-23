@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSiteSettings } from "@/hooks/use-site-settings";
+import { Logo } from "../Logo";
 
 export type Section =
   | "overview" | "users" | "subscriptions" | "plan-config" | "api-keys"
@@ -89,18 +90,7 @@ function SidebarContent({
           )
         ) : (
           <>
-            {siteSettings.logoUrl && !logoError ? (
-              <img
-                src={siteSettings.logoUrl ?? undefined}
-                alt={siteSettings.siteTitle}
-                className="h-auto w-full max-w-[160px] object-contain invert dark:invert-0 flex-shrink-0"
-                onError={() => setLogoError(true)}
-              />
-            ) : (
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center flex-shrink-0 shadow-sm">
-                <Shield className="w-4 h-4 text-white" />
-              </div>
-            )}
+            <Logo size={36} invert={true} />
             <button
               onClick={onToggle}
               className="hidden lg:flex text-muted-foreground hover:text-foreground transition-colors p-1 rounded-lg hover:bg-muted/50 flex-shrink-0"

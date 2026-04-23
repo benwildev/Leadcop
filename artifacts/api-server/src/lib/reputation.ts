@@ -11,6 +11,24 @@ const FREE_EMAIL_PROVIDERS = new Set([
   "hey.com", "msn.com", "me.com", "mac.com", "pm.me",
 ]);
 
+import { isDisposableDomain } from "./domain-cache.js";
+import { isValidTld } from "./tld-validator.js";
+
+const FORWARDING_PROVIDERS = new Set([
+  "privaterelay.appleid.com",
+  "mozmail.com",
+  "duck.com",
+  "anonaddy.me",
+  "anonaddy.com",
+  "simplelogin.com",
+  "simplelogin.co",
+  "simplelogin.me",
+  "slmail.me",
+  "maskemail.com",
+  "fmemail.com",
+  "relay.firefox.com",
+]);
+
 const ROLE_ACCOUNTS = new Set([
   "admin", "administrator", "info", "information", "noreply", "no-reply",
   "support", "contact", "help", "helpdesk", "billing", "sales",
@@ -43,6 +61,8 @@ export function getDomainSuggestion(domain: string): string | null {
 
 export interface ReputationChecks {
   isDisposable: boolean;
+  isInvalidTld?: boolean;
+  isForwarding?: boolean;
   hasMx: boolean | undefined;
   hasInbox: boolean | undefined;
   isAdmin?: boolean;
@@ -61,14 +81,99 @@ export function isRoleAccount(localPart: string): boolean {
   return ROLE_ACCOUNTS.has(lower);
 }
 
+/**
+ * 🧠 Brain: Shannon Entropy calculation to detect randomness.
+ * Standard English names have low entropy (~2.5-3.5).
+ * Random keyboard gibberish has high entropy (~4.0+).
+ */
+export function calculateEntropy(str: string): number {
+  const frequencies: Record<string, number> = {};
+  for (const char of str) {
+    frequencies[char] = (frequencies[char] || 0) + 1;
+  }
+  let entropy = 0;
+  const len = str.length;
+  for (const char in frequencies) {
+    const p = frequencies[char] / len;
+    entropy -= p * Math.log2(p);
+  }
+  return entropy;
+}
+
+/**
+ * 🧠 Brain: Detects if the local part of an email is likely gibberish.
+ */
+export function isGibberish(localPart: string): boolean {
+  if (localPart.length < 5) return false; // Too short to judge accurately
+  
+  const lower = localPart.toLowerCase();
+
+  // 1. Check for long sequences of consonants (e.g., "dfgfth")
+  const consonantsCount = lower.match(/[bcdfghjklmnpqrstvwxyz]{5,}/g);
+  if (consonantsCount) return true;
+
+  // 2. Check for common keyboard patterns
+  const patterns = ["qwerty", "asdfgh", "zxcvbn", "123456", "qazwsx", "1q2w3e"];
+  if (patterns.some(p => lower.includes(p))) return true;
+
+  // 3. Shannon Entropy Check
+  // Long strings (>8 chars) with high complexity are almost always junk
+  if (lower.length > 8) {
+    const entropy = calculateEntropy(lower);
+    if (entropy > 3.4 && !lower.includes(".") && !lower.includes("_")) {
+      return true;
+    }
+  }
+
+  // 4. Repeating characters
+  if (/(.)\1{4,}/.test(lower)) return true;
+
+  return false;
+}
+
+/**
+ * 🔒 Basic security gate for public forms (Registration, Newsletter)
+ */
+export function performBasicSecurityChecks(email: string) {
+  const [localPart, domain] = email.split("@");
+  if (!domain) return { allowed: false, reason: "Invalid email" };
+
+  const cleanDomain = domain.toLowerCase().trim();
+  const tld = cleanDomain.split(".").pop() ?? "";
+
+  if (!isValidTld(tld)) {
+    return { allowed: false, reason: "Invalid domain extension (TLD)" };
+  }
+
+  if (isForwardingEmail(cleanDomain)) {
+    return { allowed: false, reason: "Email relay services are not allowed" };
+  }
+
+  if (isDisposableDomain(cleanDomain)) {
+    return { allowed: false, reason: "Disposable email addresses are not allowed" };
+  }
+
+  if (isGibberish(localPart || "")) {
+    return { allowed: false, reason: "Suspicious email pattern detected" };
+  }
+
+  return { allowed: true };
+}
+
 export function isFreeEmail(domain: string): boolean {
   return FREE_EMAIL_PROVIDERS.has(domain.toLowerCase());
+}
+
+export function isForwardingEmail(domain: string): boolean {
+  return FORWARDING_PROVIDERS.has(domain.toLowerCase());
 }
 
 export function computeReputationScore(checks: ReputationChecks): number {
   let score = 100;
 
   if (checks.isDisposable) score -= 60;
+  if (checks.isInvalidTld) score -= 100;
+  if (checks.isForwarding) score -= 30;
   if (checks.hasMx === false) score -= 25;
   if (checks.hasInbox === false) score -= 15;
   
@@ -98,6 +203,8 @@ export function computeRiskLevel(score: number): RiskLevel {
 
 export interface TagSignals {
   isDisposable: boolean;
+  isInvalidTld?: boolean;
+  isForwarding?: boolean;
   catchAll?: boolean | null;
   roleAccount?: boolean;
   freeProvider: boolean;
@@ -107,6 +214,8 @@ export interface TagSignals {
 export function buildTags(signals: TagSignals): string[] {
   const tags: string[] = [];
   if (signals.isDisposable) tags.push("disposable");
+  if (signals.isInvalidTld) tags.push("invalid_tld");
+  if (signals.isForwarding) tags.push("forwarder");
   if (signals.catchAll === true) tags.push("catch_all");
   if (signals.roleAccount === true) tags.push("role_account");
   if (signals.freeProvider) tags.push("free_provider");

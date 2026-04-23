@@ -6,7 +6,7 @@ import crypto from "crypto";
 import { hashPassword, verifyPassword, generateApiKey, getPlanConfig } from "../lib/auth.js";
 import { createSession, destroySession, requireAuth, SESSION_COOKIE } from "../middlewares/session.js";
 import { sendPasswordResetEmail } from "../lib/email.js";
-import { isDisposableDomain } from "../lib/domain-cache.js";
+import { performBasicSecurityChecks } from "../lib/reputation.js";
 
 const router = Router();
 
@@ -30,9 +30,10 @@ router.post("/register", async (req, res) => {
 
   const { name, email, password } = result.data;
 
-  const domain = email.split("@")[1]?.trim().toLowerCase() ?? "";
-  if (isDisposableDomain(domain)) {
-    res.status(400).json({ error: "Disposable email addresses are not allowed. Please use a permanent email address." });
+  // 🔒 Backend Security Gate: Block high-risk signups
+  const security = performBasicSecurityChecks(email);
+  if (!security.allowed) {
+    res.status(400).json({ error: security.reason });
     return;
   }
 

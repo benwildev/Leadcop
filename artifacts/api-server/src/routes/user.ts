@@ -96,8 +96,8 @@ router.get("/dashboard", requireAuth, async (req, res) => {
 
   res.json({
     user: { ...user, createdAt: user.createdAt.toISOString() },
-    recentUsage: recentUsage.map((u) => ({ ...u, timestamp: u.timestamp.toISOString() })),
-    usageByDay: usageByDay.map((u) => ({ date: u.date, count: Number(u.count) })),
+    recentUsage: recentUsage.map((u: any) => ({ ...u, timestamp: u.timestamp.toISOString() })),
+    usageByDay: usageByDay.map((u: any) => ({ date: u.date, count: Number(u.count) })),
     planConfig: {
       websiteLimit: planConfig.websiteLimit,
       pageLimit: planConfig.pageLimit,
@@ -152,10 +152,10 @@ router.get("/api-keys", requireAuth, async (req, res) => {
     .orderBy(userApiKeysTable.createdAt);
 
   res.json({
-    keys: keys.map(({ key: _key, ...rest }) => ({
+    keys: keys.map(({ key: _key, ...rest }: any) => ({
       ...rest,
       maskedKey: `${_key.slice(0, 6)}${"*".repeat(20)}`,
-      createdAt: rest.createdAt.toISOString(),
+      createdAt: (rest.createdAt as Date).toISOString(),
     })),
     total: keys.length,
   });
@@ -256,7 +256,7 @@ router.get("/webhooks", requireAuth, async (req, res) => {
     .orderBy(webhooksTable.createdAt);
 
   res.json({
-    webhooks: webhooks.map((w) => ({
+    webhooks: webhooks.map((w: any) => ({
       ...w,
       secret: w.secret ? `${w.secret.slice(0, 4)}${"*".repeat(12)}` : null,
       createdAt: w.createdAt.toISOString(),
@@ -399,7 +399,7 @@ router.get("/blocklist", requireAuth, async (req, res) => {
     .orderBy(customBlocklistTable.createdAt);
 
   res.json({
-    entries: entries.map((e) => ({ ...e, createdAt: e.createdAt.toISOString() })),
+    entries: entries.map((e: any) => ({ ...e, createdAt: e.createdAt.toISOString() })),
     total: entries.length,
   });
 });
@@ -492,7 +492,7 @@ router.get("/usage", requireAuth, async (req, res) => {
     .limit(100);
 
   res.json({
-    entries: entries.map((e) => ({ ...e, timestamp: e.timestamp.toISOString() })),
+    entries: entries.map((e: any) => ({ ...e, timestamp: e.timestamp.toISOString() })),
     total: entries.length,
   });
 });
@@ -527,7 +527,7 @@ router.get("/audit-log", requireAuth, async (req, res) => {
     .offset(offset);
 
   res.json({
-    entries: entries.map((e) => ({ ...e, timestamp: e.timestamp.toISOString() })),
+    entries: entries.map((e: any) => ({ ...e, timestamp: e.timestamp.toISOString() })),
     page,
     limit,
     total: Number(total),
@@ -577,7 +577,7 @@ router.get("/analytics", requireAuth, async (req, res) => {
 
   if (plan === "BASIC") {
     res.json({
-      dailyCalls: dailyCalls.map((d) => ({ date: d.date, count: Number(d.count) })),
+      dailyCalls: dailyCalls.map((d: any) => ({ date: d.date, count: Number(d.count) })),
       monthTotal: Number(monthTotal),
       limited: true,
     });
@@ -627,12 +627,12 @@ router.get("/analytics", requireAuth, async (req, res) => {
     .limit(10);
 
   res.json({
-    dailyCalls: dailyCalls.map((d) => ({ date: d.date, count: Number(d.count) })),
+    dailyCalls: dailyCalls.map((d: any) => ({ date: d.date, count: Number(d.count) })),
     monthTotal: Number(monthTotal),
     disposableRate,
     disposableCount: Number(disposableCount),
     totalChecked: Number(totalChecks),
-    topBlockedDomains: topBlockedDomains.map((d) => ({ domain: d.domain ?? "", count: Number(d.count) })),
+    topBlockedDomains: topBlockedDomains.map((d: any) => ({ domain: d.domain ?? "", count: Number(d.count) })),
     limited: false,
   });
 });
@@ -689,7 +689,7 @@ router.get("/websites", requireAuth, async (req, res) => {
     .orderBy(userWebsitesTable.createdAt);
 
   res.json({
-    websites: websites.map((w) => ({ ...w, createdAt: w.createdAt.toISOString() })),
+    websites: websites.map((w: any) => ({ ...w, createdAt: w.createdAt.toISOString() })),
     total: websites.length,
   });
 });
@@ -743,7 +743,7 @@ router.post("/websites", requireAuth, async (req, res) => {
     .from(userWebsitesTable)
     .where(eq(userWebsitesTable.userId, req.userId!));
 
-  if (allDomains.some((w) => w.domain === domain)) {
+  if (allDomains.some((w: any) => w.domain === domain)) {
     res.status(409).json({ error: "Domain already added" });
     return;
   }
@@ -791,7 +791,7 @@ router.get("/pages", requireAuth, async (req, res) => {
     .orderBy(userPagesTable.createdAt);
 
   res.json({
-    pages: pages.map((p) => ({ ...p, createdAt: p.createdAt.toISOString() })),
+    pages: pages.map((p: any) => ({ ...p, createdAt: p.createdAt.toISOString() })),
     total: pages.length,
   });
 });

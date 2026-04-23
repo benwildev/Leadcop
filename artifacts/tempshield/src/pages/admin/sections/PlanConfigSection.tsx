@@ -11,18 +11,18 @@ import { Shield, Zap, Lock, Plus, Check, Loader2, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { SectionHeader, GlassCard, ActionButton } from "@/components/shared";
 
-const BUILT_IN_PLANS = ["FREE", "BASIC", "PRO"];
+const BUILT_IN_PLANS = ["FREE", "BASIC", "PRO", "MAX"];
 
 const DEFAULT_NEW_PLAN = {
-  requestLimit: 100,
-  mxDetectLimit: 0,
-  inboxCheckLimit: 0,
-  websiteLimit: 0,
-  pageLimit: 0,
-  maxBulkEmails: 0,
-  mxDetectionEnabled: false,
-  inboxCheckEnabled: false,
-  price: 0,
+  requestLimit: 1000,
+  mxDetectLimit: 100,
+  inboxCheckLimit: 100,
+  websiteLimit: 1,
+  pageLimit: 1000,
+  maxBulkEmails: 100,
+  mxDetectionEnabled: true,
+  inboxCheckEnabled: true,
+  price: 19,
 };
 
 export function PlanConfigSection() {
@@ -124,6 +124,7 @@ export function PlanConfigSection() {
     FREE: { label: "Free", color: "text-muted-foreground", icon: Shield },
     BASIC: { label: "Basic", color: "text-blue-400", icon: Zap },
     PRO: { label: "Pro", color: "text-primary", icon: Lock },
+    MAX: { label: "Max", color: "text-orange-400", icon: Shield },
   };
 
   const numFields = [

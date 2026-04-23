@@ -77,7 +77,7 @@ async function getFreeVerifyLimit(): Promise<number> {
       .limit(1);
     cachedFreeLimit = row?.freeVerifyLimit ?? 5;
     freeLimitCacheExpiry = now + FREE_LIMIT_TTL_MS;
-    return cachedFreeLimit;
+    return cachedFreeLimit as number;
   } catch {
     return cachedFreeLimit ?? 5;
   }

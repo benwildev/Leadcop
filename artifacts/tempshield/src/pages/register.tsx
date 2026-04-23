@@ -5,6 +5,7 @@ import { Shield, ArrowRight, Loader2, Eye, EyeOff, ShieldAlert } from "lucide-re
 import { motion, AnimatePresence } from "framer-motion";
 import AuthRightPanel from "@/components/AuthRightPanel";
 import { useSiteSettings } from "@/hooks/use-site-settings";
+import { Logo } from "./Logo";
 import { isValidEmail, extractDomain, KNOWN_DISPOSABLE_DOMAINS } from "@/utils/email-validation";
 
 export default function RegisterPage() {
@@ -18,6 +19,7 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [error, setError] = useState("");
+  const [emailError, setEmailError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const [emailDisposable, setEmailDisposable] = useState<boolean | null>(null);
@@ -43,7 +45,23 @@ export default function RegisterPage() {
         credentials: "omit",
       });
       const data = await res.json();
-      setEmailDisposable(typeof data.isDisposable === "boolean" ? data.isDisposable : false);
+      
+      if (data.isInvalidTld) {
+        setEmailError("Invalid domain");
+        setEmailDisposable(true);
+      } else if (data.isForwarding) {
+        setEmailError("Email relay services are not recommended");
+        setEmailDisposable(true);
+      } else if (data.isDisposable) {
+        setEmailError("Disposable email addresses are not allowed");
+        setEmailDisposable(true);
+      } else if (data.isGibberish) {
+        setEmailError("Suspicious email pattern detected");
+        setEmailDisposable(true);
+      } else {
+        setEmailError("");
+        setEmailDisposable(false);
+      }
     } catch {
       setEmailDisposable(false);
     } finally {
@@ -96,18 +114,7 @@ export default function RegisterPage() {
       >
         <div className="mb-10">
           <Link href="/" className="inline-block hover:opacity-80 transition-opacity">
-            {siteSettings.logoUrl && !logoError ? (
-              <img
-                src={siteSettings.logoUrl}
-                alt={siteSettings.siteTitle}
-                className="h-10 w-auto max-w-[180px] object-contain invert"
-                onError={() => setLogoError(true)}
-              />
-            ) : (
-              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center shadow-lg shadow-purple-500/30">
-                <Shield className="w-6 h-6 text-white" />
-              </div>
-            )}
+          <Logo size={48} invert={true} />
           </Link>
         </div>
 
@@ -156,7 +163,7 @@ export default function RegisterPage() {
                   exit={{ opacity: 0, y: -4 }}
                   className="mt-1.5 text-xs text-red-500 font-medium px-1"
                 >
-                  Disposable email addresses are not allowed.
+                  {emailError || "Disposable email addresses are not allowed."}
                 </motion.p>
               )}
             </AnimatePresence>

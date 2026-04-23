@@ -8,8 +8,8 @@ export async function loadDomainCache(): Promise<void> {
   const domains = await db.select({ domain: domainsTable.domain }).from(domainsTable);
   const whitelisted = await db.select({ domain: whitelistTable.domain }).from(whitelistTable);
   
-  domainSet = new Set(domains.map((d) => d.domain.toLowerCase()));
-  whitelistSet = new Set(whitelisted.map((d) => d.domain.toLowerCase()));
+  domainSet = new Set(domains.map((d: { domain: string }) => d.domain.toLowerCase()));
+  whitelistSet = new Set(whitelisted.map((d: { domain: string }) => d.domain.toLowerCase()));
   lastLoaded = new Date();
 }
 
@@ -41,7 +41,7 @@ export async function syncDomainsFromGitHub(): Promise<{ added: number; total: n
 
   // Refresh whitelist before sync to ensure we have the latest
   const whitelisted = await db.select({ domain: whitelistTable.domain }).from(whitelistTable);
-  const currentWhitelist = new Set(whitelisted.map(d => d.domain.toLowerCase()));
+  const currentWhitelist = new Set(whitelisted.map((d: { domain: string }) => d.domain.toLowerCase()));
 
   let addedCount = 0;
 

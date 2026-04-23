@@ -156,7 +156,7 @@ export function startBulkWorker(): void {
   db.select({ id: bulkJobsTable.id })
     .from(bulkJobsTable)
     .where(inArray(bulkJobsTable.status, ["pending", "processing"]))
-    .then((rows) => {
+    .then((rows: any) => {
       for (const r of rows) enqueueJob(r.id);
     })
     .catch(() => {});
@@ -363,7 +363,7 @@ router.get("/bulk-jobs/:id/download", async (req, res) => {
   };
 
   const header = "email,domain,is_disposable,reputation_score,risk_level,is_free_email,is_role_account,mx_valid,inbox_support,tags\n";
-  const rows = results.map((r) => [
+  const rows = results.map((r: any) => [
     csvCell(r.email),
     csvCell(r.domain),
     r.isDisposable ? "true" : "false",

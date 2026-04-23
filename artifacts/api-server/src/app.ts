@@ -167,8 +167,13 @@ app.post("/api/webhooks/stripe", express.raw({ type: "application/json" }), asyn
     if (userId && plan && session.payment_status === "paid") {
       try {
         const config = await getPlanConfig(plan);
-        await db.update(usersTable).set({ plan, requestLimit: config.requestLimit, requestCount: 0 }).where(eq(usersTable.id, userId));
-        logger.info({ userId, plan }, "Plan upgraded via Stripe webhook");
+        const requestLimit = session.metadata?.credits ? parseInt(session.metadata.credits) : config.requestLimit;
+        
+        await db.update(usersTable)
+          .set({ plan, requestLimit, requestCount: 0 })
+          .where(eq(usersTable.id, userId));
+          
+        logger.info({ userId, plan, requestLimit }, "Plan upgraded with custom credits via Stripe webhook");
       } catch (err) {
         logger.error({ err }, "Failed to upgrade plan after Stripe payment");
       }

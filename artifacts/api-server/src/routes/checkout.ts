@@ -38,10 +38,31 @@ async function getPayPalToken(clientId: string, secret: string, mode: string) {
 // ─── Stripe Checkout ─────────────────────────────────────────────────────────
 
 const checkoutStripeSchema = z.object({
-  plan: z.enum(["BASIC", "PRO"]),
+  plan: z.enum(["FREE", "BASIC", "PRO", "MAX"]), // Expanded for new tiers
+  credits: z.number().optional(),
   successUrl: z.string().url(),
   cancelUrl: z.string().url(),
 });
+
+function calculateDynamicPrice(plan: string, credits: number): number {
+  // Logic matches the tiers defined in the frontend pricing.tsx
+  if (plan === "BASIC") {
+    if (credits <= 5000) return 19;
+    if (credits <= 10000) return 29;
+    return 49;
+  }
+  if (plan === "PRO") {
+    if (credits <= 50000) return 89;
+    if (credits <= 100000) return 149;
+    return 299;
+  }
+  if (plan === "MAX") {
+    if (credits <= 500000) return 499;
+    if (credits <= 1000000) return 899;
+    return 1999;
+  }
+  return 0;
+}
 
 router.post("/stripe", requireAuth, async (req, res) => {
   const result = checkoutStripeSchema.safeParse(req.body);
@@ -50,7 +71,7 @@ router.post("/stripe", requireAuth, async (req, res) => {
     return;
   }
 
-  const { plan, successUrl, cancelUrl } = result.data;
+  const { plan, credits, successUrl, cancelUrl } = result.data;
 
   const settings = await getPaymentSettings();
   if (!settings || settings.gateway !== "STRIPE" || !settings.stripeEnabled || !settings.stripeSecretKey) {
@@ -69,11 +90,22 @@ router.post("/stripe", requireAuth, async (req, res) => {
     return;
   }
 
-  const [planRow] = await db.select({ price: planConfigsTable.price }).from(planConfigsTable).where(eq(planConfigsTable.plan, plan)).limit(1);
-  const priceInCents = Math.round((planRow?.price ?? (plan === "BASIC" ? 9 : 29)) * 100);
+  // Calculate price: if credits is provided, use dynamic price. Else use plan row price.
+  let priceInCents = 0;
+  let requestLimit = credits || 0;
+
+  if (credits) {
+    priceInCents = Math.round(calculateDynamicPrice(plan, credits) * 100);
+  } else {
+    const [planRow] = await db.select({ price: planConfigsTable.price }).from(planConfigsTable).where(eq(planConfigsTable.plan, plan)).limit(1);
+    priceInCents = Math.round((planRow?.price ?? (plan === "BASIC" ? 19 : 89)) * 100);
+    if (!requestLimit) {
+      const planConfig = await getPlanConfig(plan);
+      requestLimit = planConfig.requestLimit;
+    }
+  }
 
   const stripe = new Stripe(settings.stripeSecretKey);
-  const planConfig = await getPlanConfig(plan);
 
   const session = await stripe.checkout.sessions.create({
     payment_method_types: ["card"],
@@ -83,7 +115,7 @@ router.post("/stripe", requireAuth, async (req, res) => {
           currency: "usd",
           product_data: {
             name: `LeadCop ${plan} Plan`,
-            description: `${planConfig.requestLimit.toLocaleString()} requests/month`,
+            description: `${requestLimit.toLocaleString()} requests/month`,
           },
           unit_amount: priceInCents,
         },
@@ -97,6 +129,7 @@ router.post("/stripe", requireAuth, async (req, res) => {
     metadata: {
       userId: String(user.id),
       plan,
+      credits: String(requestLimit),
       planPriceCents: String(priceInCents),
     },
   });
@@ -107,7 +140,8 @@ router.post("/stripe", requireAuth, async (req, res) => {
 // ─── PayPal Create Order ─────────────────────────────────────────────────────
 
 const paypalCreateSchema = z.object({
-  plan: z.enum(["BASIC", "PRO"]),
+  plan: z.enum(["BASIC", "PRO", "MAX"]),
+  credits: z.number().optional(),
 });
 
 router.post("/paypal/create-order", requireAuth, async (req, res) => {
@@ -117,7 +151,7 @@ router.post("/paypal/create-order", requireAuth, async (req, res) => {
     return;
   }
 
-  const { plan } = result.data;
+  const { plan, credits } = result.data;
 
   const settings = await getPaymentSettings();
   if (!settings || settings.gateway !== "PAYPAL" || !settings.paypalEnabled || !settings.paypalClientId || !settings.paypalSecret) {
@@ -125,13 +159,25 @@ router.post("/paypal/create-order", requireAuth, async (req, res) => {
     return;
   }
 
-  const [planRow] = await db.select({ price: planConfigsTable.price }).from(planConfigsTable).where(eq(planConfigsTable.plan, plan)).limit(1);
-  const price = (planRow?.price ?? (plan === "BASIC" ? 9 : 29)).toFixed(2);
+  let requestLimit = credits || 0;
+  let finalPrice = 0;
 
+  if (credits) {
+    finalPrice = calculateDynamicPrice(plan, credits);
+  } else {
+    const [planRow] = await db.select({ price: planConfigsTable.price }).from(planConfigsTable).where(eq(planConfigsTable.plan, plan)).limit(1);
+    finalPrice = planRow?.price ?? (plan === "BASIC" ? 19 : 89);
+    if (!requestLimit) {
+      const planConfig = await getPlanConfig(plan);
+      requestLimit = planConfig.requestLimit;
+    }
+  }
+
+  const priceStr = finalPrice.toFixed(2);
   const { token, base } = await getPayPalToken(settings.paypalClientId, settings.paypalSecret, settings.paypalMode);
 
-  // Store userId + plan + expectedAmount in custom_id so capture can verify server-side
-  const customId = `${req.userId}:${plan}:${price}`;
+  // Store userId + plan + expectedAmount + credits in custom_id
+  const customId = `${req.userId}:${plan}:${priceStr}:${requestLimit}`;
 
   const orderResp = await fetch(`${base}/v2/checkout/orders`, {
     method: "POST",
@@ -143,8 +189,8 @@ router.post("/paypal/create-order", requireAuth, async (req, res) => {
       intent: "CAPTURE",
       purchase_units: [
         {
-          amount: { currency_code: "USD", value: price },
-          description: `LeadCop ${plan} Plan`,
+          amount: { currency_code: "USD", value: priceStr },
+          description: `LeadCop ${plan} Plan (${requestLimit.toLocaleString()} credits)`,
           custom_id: customId,
         },
       ],
@@ -212,14 +258,14 @@ router.post("/paypal/capture-order", requireAuth, async (req, res) => {
     return;
   }
 
-  // Parse custom_id: "userId:plan:price"
+  // Parse custom_id: "userId:plan:price:credits"
   const parts = purchaseUnit.custom_id.split(":");
-  if (parts.length !== 3) {
+  if (parts.length < 3) {
     res.status(400).json({ error: "Malformed order custom_id" });
     return;
   }
 
-  const [orderUserId, orderPlan, orderPrice] = parts;
+  const [orderUserId, orderPlan, orderPrice, orderCredits] = parts;
 
   // Verify the order belongs to the authenticated user
   if (parseInt(orderUserId) !== req.userId) {
@@ -227,18 +273,14 @@ router.post("/paypal/capture-order", requireAuth, async (req, res) => {
     return;
   }
 
-  // Verify the plan is valid
-  if (orderPlan !== "BASIC" && orderPlan !== "PRO") {
-    res.status(400).json({ error: "Invalid plan in order" });
-    return;
-  }
-
-  // Verify the amount matches the configured plan price
-  const [captureRow] = await db.select({ price: planConfigsTable.price }).from(planConfigsTable).where(eq(planConfigsTable.plan, orderPlan)).limit(1);
-  const expectedPrice = (captureRow?.price ?? (orderPlan === "BASIC" ? 9 : 29)).toFixed(2);
-  if (orderPrice !== expectedPrice) {
-    res.status(400).json({ error: "Order amount does not match plan price" });
-    return;
+  // Double check amount if not using credits (basic tamper check)
+  if (!orderCredits) {
+    const [captureRow] = await db.select({ price: planConfigsTable.price }).from(planConfigsTable).where(eq(planConfigsTable.plan, orderPlan)).limit(1);
+    const expectedPrice = (captureRow?.price ?? (orderPlan === "BASIC" ? 19 : 89)).toFixed(2);
+    if (orderPrice !== expectedPrice) {
+      res.status(400).json({ error: "Order amount mismatch" });
+      return;
+    }
   }
 
   // Now capture the order
@@ -257,14 +299,16 @@ router.post("/paypal/capture-order", requireAuth, async (req, res) => {
     return;
   }
 
-  // Mark order as processed to prevent replay attacks
+  // Mark order as processed
   processedPayPalOrders.add(orderId);
 
-  // Upgrade the user using server-derived plan from custom_id
+  // Upgrade user
   const config = await getPlanConfig(orderPlan);
+  const finalCredits = orderCredits ? parseInt(orderCredits) : config.requestLimit;
+
   await db
     .update(usersTable)
-    .set({ plan: orderPlan, requestLimit: config.requestLimit, requestCount: 0 })
+    .set({ plan: orderPlan, requestLimit: finalCredits, requestCount: 0 })
     .where(eq(usersTable.id, req.userId!));
 
   res.json({ message: `Plan upgraded to ${orderPlan} via PayPal` });

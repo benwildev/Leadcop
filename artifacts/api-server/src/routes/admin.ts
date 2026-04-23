@@ -33,7 +33,7 @@ router.get("/users", requireAdmin, async (req, res) => {
     .orderBy(usersTable.createdAt);
 
   res.json({
-    users: users.map((u) => ({
+    users: users.map((u: any) => ({
       ...u,
       apiKey: u.apiKey.slice(0, 8) + "••••••••••••••••••••••••",
       createdAt: u.createdAt.toISOString(),
@@ -144,11 +144,11 @@ router.get("/users/:userId/details", requireAdmin, async (req, res) => {
     .orderBy(desc(userPagesTable.createdAt));
 
   res.json({
-    websites: websites.map((w) => ({
+    websites: websites.map((w: any) => ({
       ...w,
       createdAt: w.createdAt.toISOString(),
     })),
-    pages: pages.map((p) => ({
+    pages: pages.map((p: any) => ({
       ...p,
       createdAt: p.createdAt.toISOString(),
     })),
@@ -175,7 +175,7 @@ router.get("/upgrade-requests", requireAdmin, async (req, res) => {
     .orderBy(upgradeRequestsTable.createdAt);
 
   res.json({
-    requests: requests.map((r) => ({
+    requests: requests.map((r: any) => ({
       ...r,
       userName: r.userName || "Unknown",
       userEmail: r.userEmail || "Unknown",
@@ -882,7 +882,7 @@ router.get("/api-keys", requireAdmin, async (req, res) => {
     .orderBy(usersTable.createdAt);
 
   res.json({
-    keys: users.map((u) => ({
+    keys: users.map((u: any) => ({
       userId: u.id,
       name: u.name,
       email: u.email,
@@ -912,7 +912,7 @@ router.get("/revenue", requireAdmin, async (req, res) => {
   }
 
   let mrr = 0;
-  const revenueByPlan = planConfigs.map((pc) => {
+  const revenueByPlan = planConfigs.map((pc: any) => {
     const userCount = userCountByPlan[pc.plan] || 0;
     const revenue = pc.price * userCount;
     if (pc.plan !== "FREE") mrr += revenue;
@@ -968,7 +968,7 @@ router.get("/revenue", requireAdmin, async (req, res) => {
     .orderBy(desc(upgradeRequestsTable.approvedAt))
     .limit(20);
 
-  const recent = recentRaw.map((r) => ({
+  const recent = recentRaw.map((r: any) => ({
     id: r.id,
     userName: r.userName || "Unknown",
     userEmail: r.userEmail || "Unknown",
@@ -979,7 +979,7 @@ router.get("/revenue", requireAdmin, async (req, res) => {
 
   const totalPaidUsers = planCounts
     .filter((r) => r.plan !== "FREE")
-    .reduce((a, b) => a + Number(b.count), 0);
+    .reduce((a, b: any) => a + Number(b.count), 0);
 
   res.json({ mrr, totalPaidUsers, revenueByPlan, monthlySubs, recent });
 });

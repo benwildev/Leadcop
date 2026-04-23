@@ -1,1175 +1,576 @@
-import React, { useState, useEffect, useRef } from "react";
-import { Link } from "wouter";
-import { Navbar, Footer } from "@/components/Layout";
+import { useState, useEffect, useRef } from 'react';
+import { motion } from 'framer-motion';
+import { Link } from 'wouter';
 import {
-  Shield,
-  Zap,
-  Lock,
-  Code2,
-  BarChart3,
-  Globe,
-  ArrowRight,
-  CheckCircle2,
-  Terminal,
-  Copy,
-  Check,
-  Download,
-  Puzzle,
-  ListChecks,
-  Activity,
-  Bell,
-  Database,
-  Users,
-  UserX,
-  DollarSign,
-  Inbox,
-  TrendingUp,
-  Star,
-} from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
-import EmailCheckForm from "@/components/EmailCheckForm";
-import PremiumBentoGrid from "@/components/landing/PremiumBentoGrid";
+  Zap, Check, X, ArrowRight, Copy, CheckCircle2,
+  Mail, Globe, AtSign, FileWarning, Sparkles, UserX,
+  ChevronDown, Star, Lock, Shield, AlertCircle, RefreshCw, Send,
+} from 'lucide-react';
+import { PricingSection } from "../components/sections/PricingSection";
+import { Logo } from './Logo';
 
-const container: any = {
-  hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { staggerChildren: 0.06, delayChildren: 0 } },
-};
+type ValStatus = 'idle' | 'typing' | 'checking' | 'blocked' | 'role' | 'typo' | 'invalid' | 'valid' | 'tld-error' | 'free';
+type ValResult = { status: ValStatus; message?: string; suggestion?: string; reason?: string };
 
-const item: any = {
-  hidden: { opacity: 0, y: 16 },
-  show: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.35, ease: [0.4, 0, 0.2, 1] },
-  },
-};
+// ─── Live Demo Validation (API Powered) ──────────────────────────────────────
+async function checkEmailApi(email: string): Promise<ValResult> {
+  const t = email.trim();
+  if (!t) return { status: 'idle' };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(t)) return { status: 'invalid', message: "This doesn't look like a valid email address." };
 
-const STATS = [
-  { value: "100K+", label: "Fake Emails Blocked" },
-  { value: "99.9%", label: "Detection Accuracy" },
-  { value: "500+", label: "Businesses Protected" },
-  { value: "2 min", label: "Avg. Setup Time" },
-];
+  try {
+    const response = await fetch('/api/check-email/demo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: t }),
+    });
 
-const PAIN_POINTS_COMPACT = [
-  { icon: UserX, title: "Block Fake Signups" },
-  { icon: DollarSign, title: "Save Ad Spend" },
-  { icon: Inbox, title: "Clean CRM Leads" },
-];
+    if (!response.ok) {
+      const err = await response.json();
+      return { status: 'invalid', message: err.error || "Invalid email address." };
+    }
 
-const FEATURES = [
-  {
-    icon: Shield,
-    title: "Block Every Fake Signup",
-    desc: "Instantly identify and reject disposable email addresses before they ever reach your list, CRM, or database.",
-  },
-  {
-    icon: Zap,
-    title: "Zero Friction for Real Customers",
-    desc: "Validation happens in real time as users type. Legitimate signups sail through; only fake ones are stopped.",
-  },
-  {
-    icon: TrendingUp,
-    title: "Cleaner Lists, Better ROI",
-    desc: "Higher deliverability, lower bounce rates, and more revenue from every campaign — because every address is real.",
-  },
-  {
-    icon: Lock,
-    title: "Set It and Forget It",
-    desc: "One script tag or WordPress plugin install protects every form on your site automatically. No ongoing maintenance.",
-  },
-  {
-    icon: BarChart3,
-    title: "See What's Being Blocked",
-    desc: "A real-time dashboard shows every blocked attempt, which form triggered it, and how many fake signups you've stopped.",
-  },
-  {
-    icon: Globe,
-    title: "Works on Any Website or Platform",
-    desc: "WordPress, Webflow, Shopify, custom HTML — one API key protects every form across all your properties.",
-  },
-];
+    const data = await response.json();
 
-const HOW_IT_WORKS = [
-  {
-    step: "01",
-    icon: Star,
-    title: "Create Your Free Account",
-    desc: "Sign up in seconds — no credit card required. Your API key is ready immediately.",
-  },
-  {
-    step: "02",
-    icon: Code2,
-    title: "Add to Your Forms",
-    desc: "Drop one script tag onto any website, or install the WordPress plugin. Protection is active in under two minutes.",
-  },
-  {
-    step: "03",
-    icon: Shield,
-    title: "Fake Emails Blocked — Automatically",
-    desc: "LeadCop silently detects and rejects disposable addresses on every submission. Your list stays clean while real customers get through.",
-  },
-];
+    if (data.isInvalidTld) return { status: 'tld-error', message: 'Invalid domain', reason: 'Unsupported TLD' };
+    if (data.isForwarding) return { status: 'role', message: 'Email relay services are not recommended for signups.', reason: 'Forwarding / Relay detected' };
+    if (data.isDisposable) return { status: 'blocked', message: 'Temporary email addresses are not allowed.', reason: 'Disposable provider detected' };
+    if (data.didYouMean) return { status: 'typo', message: `Did you mean ${data.didYouMean}?`, suggestion: data.didYouMean };
+    if (data.isGibberish) return { status: 'tld-error', message: 'This TLD or domain pattern is suspicious.', reason: 'TLD/Pattern check failed' };
+    if (data.isFree) return { status: 'free', message: 'Personal email detected.' };
 
-const SCRIPT_URL =
-  typeof window !== "undefined"
-    ? `${window.location.origin}/temp-email-validator.js`
-    : "https://yourdomain.com/temp-email-validator.js";
-
-const API_URL =
-  typeof window !== "undefined"
-    ? `${window.location.origin}/api/check-email/demo`
-    : "https://yourdomain.com/api/check-email/demo";
-
-const CODE_TABS = [
-  {
-    id: "html",
-    label: "HTML Script",
-    icon: "🌐",
-    code: `<!-- Add this just before the closing </body> tag -->
-<script
-  src="${SCRIPT_URL}"
-  data-api-key="YOUR_API_KEY">
-</script>
-
-<!-- That's it! LeadCop auto-attaches to every
-     email field on the page and validates in real time. -->`,
-  },
-  {
-    id: "config",
-    label: "Config Options",
-    icon: "⚙️",
-    code: `<!-- Customize the behavior with data attributes -->
-<script
-  src="${SCRIPT_URL}"
-  data-api-key="YOUR_API_KEY"
-  data-error-message="Please use a real email address."
-  data-error-color="#ef4444"
-  data-debounce="600">
-</script>
-
-<!-- All options:
-  data-api-key      — Your API key (required for >demo use)
-  data-api-url      — Override the API base URL
-  data-error-message — Custom error text shown to the user
-  data-error-color  — Error text color (any CSS color)
-  data-error-border — Error border color
-  data-debounce     — Debounce delay in ms (default: 600)
--->`,
-  },
-  {
-    id: "wordpress",
-    label: "WordPress Plugin",
-    icon: "🔷",
-    code: `<!-- One-Click Protection -->
-1. Download LeadCop Plugin (.zip)
-2. Upload to your WP Dashboard
-3. Paste API Key: YOUR_API_KEY
-
-<!-- Automated Integrations: -->
-- WooCommerce, CF7, WPForms
-- Gravity Forms, Elementor
-- WP Registration & Comments`,
-  },
-  {
-    id: "api",
-    label: "Direct API",
-    icon: "⚡",
-    code: `// Server-side check — works in any language
-const res = await fetch("${API_URL}", {
-  method: "POST",
-  headers: {
-    "Authorization": "Bearer YOUR_API_KEY",
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({ email: "test@mailinator.com" }),
-});
-
-const data = await res.json();
-// {
-//   "isDisposable": true,
-//   "domain": "mailinator.com",
-//   "requestsRemaining": 998
-// }
-
-if (data.isDisposable) {
-  // Reject the form submission
-}`,
-  },
-];
-
-const PLAN_STATIC: Record<
-  string,
-  {
-    name: string;
-    period: string;
-    desc: string;
-    staticFeatures: string[];
-    cta: string;
-    href: string;
-    highlighted: boolean;
+    return { status: 'valid', message: 'Looks good! This is a real email address.' };
+  } catch (error) {
+    console.error("API Error:", error);
+    return { status: 'invalid', message: "Could not connect to verification server." };
   }
-> = {
-  FREE: {
-    name: "Free",
-    period: "forever",
-    desc: "Start protecting your forms today, no card needed",
-    staticFeatures: [
-      "Disposable email detection",
-      "Standard response time",
-      "Community support",
-    ],
-    cta: "Start for Free",
-    href: "/signup",
-    highlighted: false,
-  },
-  BASIC: {
-    name: "Basic",
-    period: "/month",
-    desc: "Stop fake signups as your business grows",
-    staticFeatures: [
-      "Priority response time",
-      "Usage analytics dashboard",
-      "Email support",
-      "Monthly reset",
-    ],
-    cta: "Get Started",
-    href: "/upgrade",
-    highlighted: false,
-  },
-  PRO: {
-    name: "Pro",
-    period: "/month",
-    desc: "Enterprise-grade protection for high-volume forms",
-    staticFeatures: [
-      "Fastest response time",
-      "Advanced analytics",
-      "Priority support",
-      "Monthly reset",
-      "Custom integrations",
-    ],
-    cta: "Get Started",
-    href: "/upgrade",
-    highlighted: true,
-  },
-  ADVANCED: {
-    name: "Advanced",
-    period: "/month",
-    desc: "Comprehensive protection for growing businesses",
-    staticFeatures: [
-      "Inlcudes everything in Pro",
-      "Fastest response time",
-      "Advanced analytics",
-      "Priority support",
-      "Monthly reset",
-    ],
-    cta: "Get Started",
-    href: "/upgrade",
-    highlighted: false,
-  },
-  MAX: {
-    name: "Max",
-    period: "/month",
-    desc: "The ultimate protection suite for power users",
-    staticFeatures: [
-      "Includes everything in Advanced",
-      "Fastest response time",
-      "Dedicated account manager",
-      "Custom integrations",
-      "Unlimited history",
-    ],
-    cta: "Get Started",
-    href: "/upgrade",
-    highlighted: false,
-  },
-};
-
-interface LandingPlanData {
-  plan: string;
-  price: number;
-  requestLimit: number;
-  websiteLimit: number;
-  mxDetectionEnabled: boolean;
-  inboxCheckEnabled: boolean;
 }
 
-function buildLandingFeatures(
-  planKey: string,
-  data: LandingPlanData,
-): string[] {
-  const features: string[] = [];
-  const isFree = data.price === 0;
-  if (data.requestLimit > 0) {
-    features.push(
-      isFree
-        ? `${data.requestLimit.toLocaleString()} checks included`
-        : `${data.requestLimit.toLocaleString()} checks/month`,
-    );
-  }
-  if (!isFree && data.websiteLimit > 0) {
-    features.push(
-      `${data.websiteLimit} website${data.websiteLimit > 1 ? "s" : ""}`,
-    );
-  }
-  if (data.mxDetectionEnabled) features.push("MX record verification");
-  if (data.inboxCheckEnabled) features.push("Inbox detection");
-  return [...features, ...(PLAN_STATIC[planKey]?.staticFeatures ?? [])];
-}
-
-// ── WordPress plugin section data ─────────────────────────────────────────────
-
-const WP_FEATURES = [
-  {
-    icon: Puzzle,
-    title: "10 Form Integrations",
-    desc: "WooCommerce, CF7, WPForms, Gravity Forms, Elementor, Ninja Forms, Fluent Forms, and WordPress core forms — all covered out of the box.",
-  },
-  {
-    icon: Database,
-    title: "24-Hour Result Cache",
-    desc: "API results are cached in WordPress transients for 24 hours. Repeat submissions are instant and don't consume your quota.",
-  },
-  {
-    icon: ListChecks,
-    title: "Allow / Block Lists",
-    desc: "Manually allowlist your company domain or blocklist known bad actors — overrides the API for full local control.",
-  },
-  {
-    icon: Activity,
-    title: "Activity Log",
-    desc: "Every email check is recorded with outcome, reason, and form name. The last 1,000 entries are kept and searchable.",
-  },
-  {
-    icon: Bell,
-    title: "Admin Notifications",
-    desc: "Get an email alert the moment a form submission is blocked — so nothing slips through unnoticed.",
-  },
-  {
-    icon: Code2,
-    title: "WP REST API Endpoint",
-    desc: "Use /wp-json/leadcop/v1/check from themes, page builders, or headless WordPress. Auth via your API key.",
-  },
-];
-
-const WP_INTEGRATIONS = [
-  { name: "WooCommerce", color: "#7f54b3" },
-  { name: "Contact Form 7", color: "#e44b2b" },
-  { name: "WPForms", color: "#e27730" },
-  { name: "Gravity Forms", color: "#f7941d" },
-  { name: "Elementor Pro", color: "#92003b" },
-  { name: "Ninja Forms", color: "#dd3333" },
-  { name: "Fluent Forms", color: "#1b6ef3" },
-  { name: "WP Registration", color: "#2271b1" },
-  { name: "WP Comments", color: "#3858e9" },
-];
-
-const WP_STEPS = [
-  {
-    step: "01",
-    title: "Download & Upload",
-    desc: "Download the plugin zip and upload it via Plugins → Add New → Upload Plugin in your WordPress admin.",
-  },
-  {
-    step: "02",
-    title: "Activate",
-    desc: "Click Activate. LeadCop will appear in your admin sidebar. The log table is created automatically on first run.",
-  },
-  {
-    step: "03",
-    title: "Enter Your API Key",
-    desc: "Go to LeadCop → General, paste your API key, and save. All 10 integrations are enabled and protecting forms immediately.",
-  },
-];
-
-// WordPress logo SVG
-function WpLogoIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
-      <path d="M12 2C6.486 2 2 6.486 2 12s4.486 10 10 10 10-4.486 10-10S17.514 2 12 2zM3.952 12c0-1.244.265-2.428.736-3.5L8.47 20.18C5.8 18.74 3.952 15.577 3.952 12zm8.048 8.048c-.84 0-1.65-.12-2.41-.34l2.56-7.44 2.62 7.18c.017.043.038.083.06.12a8.1 8.1 0 01-2.83.48zm1.17-12.316l2.312 6.875-6.43-1.96.65-1.95 1.21.18c.56 0 1.02-.46 1.02-1.02 0-.56-.46-1.02-1.02-1.02l-1.63.04.1-.19 2.13-5.99c.3-.04.6-.06.91-.06.64 0 1.27.09 1.87.23-.01.01-.01.02-.01.03l-.94 1.88zm2.76 7.596l2.24-6.5 1.02 3.42c.19.64.37 1.38.37 1.84 0 .73-.1 1.4-.28 2.04a8.07 8.07 0 01-1.47.85c-.57-.22-1.05-.42-1.87-.65zm2.71-11.6c.28.55.46 1.19.46 1.93 0 .65-.12 1.3-.46 2.12l-1.3 3.74-2.33-6.78 1.28-3.8c.46.28.86.57 1.13 1.03-.01.18-.01.36-.01.55 0 .56.46.96 1.01.96.2 0 .38-.06.34 0l.1 2.24z" />
-    </svg>
-  );
-}
-
-const LOG_ENTRIES = [
-  { email: "user@mailinator.com", outcome: "blocked" as const, reason: "disposable", form: "woo checkout", time: "14:23" },
-  { email: "john@gmail.com", outcome: "warned" as const, reason: "free email", form: "contact form 7", time: "14:22" },
-  { email: "alice@company.io", outcome: "allowed" as const, reason: "", form: "wp register", time: "14:20" },
-  { email: "spam@tempmail.org", outcome: "blocked" as const, reason: "disposable", form: "wpforms", time: "14:18" },
-];
-
-const OUTCOME_COLORS = {
-  blocked: { text: "#dc2626", bg: "#fef2f2", label: "blocked" },
-  warned: { text: "#d97706", bg: "#fffbeb", label: "warned" },
-  allowed: { text: "#16a34a", bg: "#f0fdf4", label: "allowed" },
-};
-
-const MOCK_TOGGLES = [
-  { label: "WooCommerce Checkout", on: true },
-  { label: "Contact Form 7", on: true },
-  { label: "WPForms", on: true },
-  { label: "Gravity Forms", on: false },
-  { label: "Elementor Pro Forms", on: true },
-  { label: "Ninja Forms", on: true },
-];
-
-function AdminPanelMockup() {
-  const [activeTab, setActiveTab] = useState("integrations");
-  const [visibleLog, setVisibleLog] = useState<number>(0);
-  const [toggleStates, setToggleStates] = useState<boolean[]>(MOCK_TOGGLES.map((t) => t.on));
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    const order = ["integrations", "log", "general"];
-    let i = 0;
-    timerRef.current = setInterval(() => {
-      i = (i + 1) % order.length;
-      setActiveTab(order[i]);
-    }, 3000);
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, []);
-
-  useEffect(() => {
-    if (activeTab !== "log") { setVisibleLog(0); return; }
-    setVisibleLog(0);
-    let n = 0;
-    const t = setInterval(() => {
-      n += 1;
-      setVisibleLog(n);
-      if (n >= LOG_ENTRIES.length) clearInterval(t);
-    }, 350);
-    return () => clearInterval(t);
-  }, [activeTab]);
-
-  const tabs = ["general", "integrations", "log"];
-
-  return (
-    <div className="relative rounded-2xl overflow-hidden border border-border/60 bg-card shadow-2xl shadow-black/20">
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-border/40 bg-muted/50">
-        <div className="flex gap-1.5">
-          <div className="w-2.5 h-2.5 rounded-full bg-red-400/80" />
-          <div className="w-2.5 h-2.5 rounded-full bg-yellow-400/80" />
-          <div className="w-2.5 h-2.5 rounded-full bg-green-400/80" />
-        </div>
-        <div className="flex-1 mx-3 rounded-md bg-background/60 px-3 py-1 text-[10px] text-muted-foreground font-mono truncate">
-          /wp-admin/admin.php?page=leadcop&tab={activeTab}
-        </div>
-      </div>
-
-      <div className="flex items-center gap-2.5 px-4 py-3 border-b border-border/40 bg-muted/20">
-        <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10">
-          <Shield className="h-4 w-4 text-primary" />
-        </div>
-        <span className="text-sm font-semibold text-foreground">LeadCop Email Validator</span>
-        <span className="ml-auto rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
-          v1.1.0
-        </span>
-      </div>
-
-      <div className="flex border-b border-border/40 bg-muted/10 px-1">
-        {tabs.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => {
-              setActiveTab(tab);
-              if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
-            }}
-            className={`px-4 py-2.5 text-[11px] font-medium capitalize border-b-2 -mb-px transition-all ${activeTab === tab
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
-          >
-            {tab === "log" ? "Activity Log" : tab.charAt(0).toUpperCase() + tab.slice(1)}
-          </button>
-        ))}
-      </div>
-
-      <div className="min-h-[240px] p-4">
-        <AnimatePresence mode="wait">
-          {activeTab === "integrations" && (
-            <motion.div
-              key="integrations"
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.2 }}
-              className="space-y-2.5"
-            >
-              <p className="text-[10px] text-muted-foreground mb-3">
-                Choose which form plugins LeadCop validates:
-              </p>
-              {MOCK_TOGGLES.map((toggle, i) => (
-                <motion.div
-                  key={toggle.label}
-                  initial={{ opacity: 0, x: -8 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.05 }}
-                  className="flex items-center justify-between rounded-lg border border-border/40 bg-muted/20 px-3 py-2"
-                >
-                  <span className="text-[11px] text-foreground">{toggle.label}</span>
-                  <button
-                    onClick={() => setToggleStates((s) => s.map((v, idx) => idx === i ? !v : v))}
-                    className={`relative h-4 w-7 rounded-full transition-colors duration-300 ${toggleStates[i] ? "bg-primary" : "bg-muted-foreground/30"
-                      }`}
-                  >
-                    <span
-                      className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform duration-300 ${toggleStates[i] ? "translate-x-3.5" : "translate-x-0.5"
-                        }`}
-                    />
-                  </button>
-                </motion.div>
-              ))}
-            </motion.div>
-          )}
-
-          {activeTab === "log" && (
-            <motion.div
-              key="log"
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.2 }}
-              className="space-y-2"
-            >
-              <p className="text-[10px] text-muted-foreground mb-3">
-                Recent email checks — last 1,000 entries kept
-              </p>
-              <div className="rounded-lg border border-border/40 overflow-hidden">
-                <div className="grid grid-cols-4 gap-2 px-3 py-1.5 bg-muted/40 text-[9px] font-semibold text-muted-foreground uppercase tracking-wide">
-                  <span>Email</span>
-                  <span>Outcome</span>
-                  <span>Form</span>
-                  <span>Time</span>
-                </div>
-                {LOG_ENTRIES.slice(0, visibleLog).map((entry, i) => {
-                  const c = OUTCOME_COLORS[entry.outcome];
-                  return (
-                    <motion.div
-                      key={i}
-                      initial={{ opacity: 0, y: -4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="grid grid-cols-4 gap-2 px-3 py-1.5 text-[10px] border-t border-border/30"
-                    >
-                      <span className="font-mono truncate text-foreground/80">{entry.email}</span>
-                      <span className="font-semibold" style={{ color: c.text }}>{c.label}</span>
-                      <span className="text-muted-foreground">{entry.form}</span>
-                      <span className="text-muted-foreground">{entry.time}</span>
-                    </motion.div>
-                  );
-                })}
-              </div>
-            </motion.div>
-          )}
-
-          {activeTab === "general" && (
-            <motion.div
-              key="general"
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.2 }}
-              className="space-y-4"
-            >
-              <div className="space-y-2">
-                <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
-                  API Key
-                </label>
-                <div className="flex items-center gap-2 rounded-lg border border-border/40 bg-muted/20 px-3 py-2">
-                  <span className="font-mono text-[11px] text-foreground/60 flex-1">lk_••••••••••••••••••••••</span>
-                  <Check className="h-3.5 w-3.5 text-green-500" />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
-                  Disposable Emails
-                </label>
-                <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
-                  <span className="text-[11px] text-foreground">Block disposable / burner emails</span>
-                  <div className="relative h-4 w-7 rounded-full bg-primary">
-                    <span className="absolute top-0.5 right-0.5 h-3 w-3 rounded-full bg-white shadow" />
-                  </div>
-                </div>
-              </div>
-              <div className="rounded-lg border border-border/40 bg-muted/10 px-3 py-2 flex items-center gap-2">
-                <Activity className="h-3.5 w-3.5 text-primary/60" />
-                <span className="text-[11px] text-muted-foreground">Activity log: </span>
-                <span className="text-[11px] font-semibold text-foreground">347 checks today</span>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-    </div>
-  );
-}
-
-function CopyButton({ code }: { code: string }) {
-  const [copied, setCopied] = useState(false);
-  const copy = async () => {
-    await navigator.clipboard.writeText(code);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-  return (
-    <button
-      onClick={copy}
-      className="text-muted-foreground transition-colors hover:text-foreground"
-    >
-      {copied ? (
-        <Check className="h-3.5 w-3.5 text-primary" />
-      ) : (
-        <Copy className="h-3.5 w-3.5" />
-      )}
-    </button>
-  );
-}
-
-function DarkCodeBlock({ code, label }: { code: string; label: string }) {
-  return (
-    <div className="overflow-hidden rounded-lg border border-border/50 bg-secondary">
-      <div className="flex items-center justify-between border-b border-border/30 px-4 py-2">
-        <div className="flex items-center gap-2">
-          <Terminal className="h-3.5 w-3.5 text-muted-foreground" />
-          <span className="text-xs font-medium text-muted-foreground">
-            {label}
-          </span>
-        </div>
-        <CopyButton code={code} />
-      </div>
-      <pre className="overflow-x-auto p-4 font-mono text-xs leading-relaxed text-green-600 dark:text-green-400">
-        <code>{code}</code>
-      </pre>
-    </div>
-  );
-}
-
-function LiveDemo({
-  email,
-  onEmailChange,
-}: {
-  email: string;
-  onEmailChange: (v: string) => void;
-}) {
-  const apiUrl =
-    typeof window !== "undefined"
-      ? `${window.location.origin}/api/check-email/demo`
-      : "https://yourdomain.com/api/check-email/demo";
-  return <EmailCheckForm email={email} onEmailChange={onEmailChange} apiUrl={apiUrl} />;
-}
-
-function formatPlanPrice(planKey: string, price: number): string {
-  if (price === 0) return "$0";
-  return `$${price % 1 === 0 ? price : price.toFixed(2)}`;
-}
-
+// ─── Newsletter Form Component ──────────────────────────────────────────────
 function NewsletterForm() {
-  const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
-  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
-  const [message, setMessage] = useState("");
+  const [email, setEmail] = useState('');
+  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [message, setMessage] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email) return;
-    setStatus("loading");
+    if (!email || !email.includes('@')) return;
+    
+    setStatus('loading');
     try {
-      const res = await fetch("/api/newsletter/subscribe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, name }),
+      // First, validate using LeadCop logic
+      const validation = await checkEmailApi(email);
+      console.log("Newsletter Validation Result:", validation);
+      
+      if (validation.status !== 'valid' && validation.status !== 'idle') {
+        setStatus('error');
+        setMessage(validation.message || "Invalid email address.");
+        return;
+      }
+
+      console.log("Newsletter verification passed. Subscribing...");
+      const res = await fetch('/api/newsletter/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Subscription failed");
-      setStatus("success");
-      setMessage(data.message || "Thanks for subscribing!");
-      setEmail("");
-      setName("");
-    } catch (err: any) {
-      setStatus("error");
-      setMessage(err.message || "Something went wrong. Please try again.");
+      console.log("Newsletter Subscription API Response:", data);
+      
+      if (res.ok) {
+        setStatus('success');
+        setMessage(data.message || "You're on the list!");
+        setEmail('');
+      } else {
+        setStatus('error');
+        setMessage(data.error || "Something went wrong.");
+      }
+    } catch (err) {
+      setStatus('error');
+      setMessage("Could not connect to server.");
     }
   };
 
-  return (
-    <div className="w-full">
-      {status === "success" ? (
-        <div className="flex items-center justify-center gap-2 rounded-xl bg-green-500/10 border border-green-500/30 text-green-400 px-6 py-4 text-sm font-medium">
-          <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-          {message}
+  if (status === 'success') {
+    return (
+      <motion.div 
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col items-center gap-2 py-4 text-gray-900"
+      >
+        <div className="w-10 h-10 rounded-full bg-green-50 text-green-600 flex items-center justify-center">
+          <Check className="w-5 h-5" />
         </div>
-      ) : (
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <input
-            type="text"
-            placeholder="First name (optional)"
-            value={name}
-            onChange={e => setName(e.target.value)}
-            className="w-full px-4 py-2.5 rounded-xl bg-muted/40 border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all"
-          />
-          <input
-            type="email"
-            required
-            placeholder="Your email address"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            className="w-full px-4 py-2.5 rounded-xl bg-muted/40 border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all"
-          />
-          <button
-            type="submit"
-            disabled={status === "loading"}
-            className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-bold text-primary-foreground transition-all hover:bg-primary/90 disabled:opacity-60"
-          >
-            {status === "loading" ? (
-              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            ) : (
-              <>Join the Intel &rarr;</>
-            )}
-          </button>
-          {status === "error" && (
-            <p className="text-[10px] text-red-500 text-center font-medium">{message}</p>
-          )}
-        </form>
+        <p className="font-semibold text-base">{message}</p>
+        <button onClick={() => setStatus('idle')} className="text-xs text-gray-400 hover:text-gray-600 transition-colors">Subscribe another email</button>
+      </motion.div>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-2 max-w-md mx-auto relative group">
+      <div className="flex-1 relative">
+        <input 
+          type="email" 
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="Email address"
+          required
+          className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-50 transition-all"
+        />
+      </div>
+      <button 
+        type="submit" 
+        disabled={status === 'loading'}
+        className="bg-gray-900 text-white px-6 py-3.5 rounded-xl text-sm font-semibold hover:bg-gray-800 transition-all active:scale-[0.98] disabled:opacity-70 disabled:pointer-events-none flex items-center justify-center gap-2 min-w-[120px]"
+      >
+        {status === 'loading' ? (
+          <RefreshCw className="w-4 h-4 animate-spin text-white/50" />
+        ) : (
+          'Join'
+        )}
+      </button>
+      {status === 'error' && (
+        <p className="absolute -bottom-6 left-0 right-0 text-[10px] text-red-500 font-medium">{message}</p>
       )}
+    </form>
+  );
+}
+
+// ─── Live Demo Widget ────────────────────────────────────────────────────────
+function LiveDemoWidget() {
+  const [email, setEmail] = useState('');
+  const [result, setResult] = useState<ValResult>({ status: 'idle' });
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const examples = [
+    { label: 'Apple Relay', value: 'user@privaterelay.appleid.com' },
+    { label: 'Role address', value: 'admin@company.com' },
+    { label: 'Invalid domain', value: 'user@imcgrupo.comfd' },
+    { label: 'Real email', value: 'sarah@acmecorp.com' },
+  ];
+
+  const handleChange = (val: string) => {
+    setEmail(val);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    if (!val.trim()) { setResult({ status: 'idle' }); return; }
+    setResult({ status: 'typing' });
+    timerRef.current = setTimeout(async () => {
+      setResult({ status: 'checking' });
+      const apiResult = await checkEmailApi(val);
+      setResult(apiResult);
+    }, 650);
+  };
+
+  const s = result.status;
+  const borderCls =
+    s === 'valid' ? 'border-green-400 ring-2 ring-green-100' :
+      s === 'free' ? 'border-blue-400 ring-2 ring-blue-100' :
+      s === 'blocked' || s === 'invalid' ? 'border-red-400 ring-2 ring-red-100' :
+        s === 'role' || s === 'tld-error' ? 'border-orange-400 ring-2 ring-orange-100' :
+          s === 'typo' ? 'border-yellow-400 ring-2 ring-yellow-100' :
+            'border-gray-200 focus-within:border-violet-400 focus-within:ring-2 focus-within:ring-violet-100';
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-2xl shadow-violet-100 p-8">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex gap-1.5">
+          <span className="w-3 h-3 rounded-full bg-red-400" />
+          <span className="w-3 h-3 rounded-full bg-yellow-400" />
+          <span className="w-3 h-3 rounded-full bg-green-400" />
+        </div>
+        <span className="text-xs text-gray-400 font-mono">leadcop.io / live-demo</span>
+      </div>
+
+      <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">Email Address</p>
+      <div className={`flex items-center gap-3 px-4 py-3.5 rounded-xl border-2 transition-all duration-200 bg-white ${borderCls}`}>
+        <input
+          type="email"
+          value={email}
+          onChange={e => handleChange(e.target.value)}
+          placeholder="Type any email to test…"
+          className="flex-1 text-gray-800 placeholder-gray-300 outline-none bg-transparent text-sm"
+        />
+        {s === 'checking' && <RefreshCw className="w-5 h-5 text-gray-300 animate-spin flex-shrink-0" />}
+        {s === 'valid' && <Shield className="w-5 h-5 text-green-500 flex-shrink-0" />}
+        {s === 'free' && <Shield className="w-5 h-5 text-blue-500 flex-shrink-0" />}
+        {(s === 'blocked' || s === 'invalid') && <Shield className="w-5 h-5 text-red-500 flex-shrink-0" />}
+        {s === 'role' && <Shield className="w-5 h-5 text-orange-500 flex-shrink-0" />}
+        {s === 'tld-error' && <Shield className="w-5 h-5 text-orange-500 flex-shrink-0" />}
+        {s === 'typo' && <Shield className="w-5 h-5 text-yellow-500 flex-shrink-0" />}
+        {(s === 'idle' || s === 'typing') && <Shield className="w-5 h-5 text-gray-200 flex-shrink-0" />}
+      </div>
+
+      <div className="min-h-[22px] mt-2.5">
+        {s === 'blocked' && <p className="text-sm text-red-600 flex items-center gap-1.5"><X className="w-3.5 h-3.5 flex-shrink-0" />{result.message}</p>}
+        {s === 'role' && <p className="text-sm text-orange-600 flex items-center gap-1.5"><AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />{result.message}</p>}
+        {s === 'tld-error' && <p className="text-sm text-orange-600 flex items-center gap-1.5"><AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />{result.message}</p>}
+        {s === 'typo' && <p className="text-sm text-yellow-700 flex items-center gap-1.5"><AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />{result.message} <button onClick={() => handleChange(result.suggestion!)} className="ml-1 text-violet-600 underline text-xs">Fix it</button></p>}
+        {s === 'invalid' && <p className="text-sm text-red-600 flex items-center gap-1.5"><X className="w-3.5 h-3.5 flex-shrink-0" />{result.message}</p>}
+        {s === 'valid' && <p className="text-sm text-green-600 flex items-center gap-1.5"><Check className="w-3.5 h-3.5 flex-shrink-0" />{result.message}</p>}
+        {s === 'free' && (
+          <div className="flex flex-col gap-2.5">
+            <p className="text-sm text-blue-600 flex items-center gap-1.5 font-medium"><Check className="w-3.5 h-3.5 flex-shrink-0" />{result.message}</p>
+            <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-3 flex items-center justify-between group cursor-default">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-3.5 h-3.5 text-blue-500" />
+                <span className="text-[11px] text-blue-700 font-medium">B2B Intel: Capture work emails instead?</span>
+              </div>
+              <button 
+                className="text-[10px] font-bold text-blue-600 uppercase tracking-tight hover:text-blue-800 transition-colors"
+                onClick={() => setEmail('')}
+              >
+                Enter Work email
+              </button>
+            </div>
+          </div>
+        )}
+        {s === 'checking' && <p className="text-sm text-gray-400">Checking…</p>}
+      </div>
+
+      <div className="mt-5 pt-5 border-t border-gray-100">
+        <p className="text-xs text-gray-400 mb-3">Try an example:</p>
+        <div className="flex flex-wrap gap-2">
+          {examples.map(ex => (
+            <button key={ex.value} onClick={() => handleChange(ex.value)}
+              className="text-xs px-3 py-1.5 rounded-full bg-gray-50 text-gray-600 border border-gray-200 hover:border-violet-300 hover:text-violet-700 transition-colors">
+              {ex.label}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
 
-export default function LandingPage() {
-  const [activeTab, setActiveTab] = useState("html");
-  const [demoEmail, setDemoEmail] = useState("");
-  const [planPrices, setPlanPrices] = useState<Record<string, number>>({
-    FREE: 0,
-    BASIC: 9,
-    PRO: 29,
-  });
-  const [fullPlanData, setFullPlanData] = useState<
-    Record<string, LandingPlanData>
-  >({
-    FREE: {
-      plan: "FREE",
-      price: 0,
-      requestLimit: 10,
-      websiteLimit: 0,
-      mxDetectionEnabled: false,
-      inboxCheckEnabled: false,
-    },
-    BASIC: {
-      plan: "BASIC",
-      price: 9,
-      requestLimit: 1000,
-      websiteLimit: 0,
-      mxDetectionEnabled: false,
-      inboxCheckEnabled: false,
-    },
-    PRO: {
-      plan: "PRO",
-      price: 29,
-      requestLimit: 10000,
-      websiteLimit: 0,
-      mxDetectionEnabled: false,
-      inboxCheckEnabled: false,
-    },
-  });
-  const currentTab = CODE_TABS.find((t) => t.id === activeTab)!;
+// ─── Code Block ───────────────────────────────────────────────────────────────
+function CodeSnippet({ code }: { code: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => { navigator.clipboard.writeText(code); setCopied(true); setTimeout(() => setCopied(false), 2000); };
+  return (
+    <div className="relative bg-gray-950 rounded-xl overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/5">
+        <div className="flex gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red-500/50" /><span className="w-2.5 h-2.5 rounded-full bg-yellow-500/50" /><span className="w-2.5 h-2.5 rounded-full bg-green-500/50" /></div>
+        <button onClick={copy} className="flex items-center gap-1.5 text-xs text-white/40 hover:text-white/70 transition-colors">
+          {copied ? <><CheckCircle2 className="w-3.5 h-3.5 text-green-400" />Copied!</> : <><Copy className="w-3.5 h-3.5" />Copy</>}
+        </button>
+      </div>
+      <pre className="p-5 text-xs font-mono text-green-400 leading-relaxed overflow-x-auto whitespace-pre-wrap"><code>{code}</code></pre>
+    </div>
+  );
+}
 
+// ─── Feature Card ─────────────────────────────────────────────────────────────
+function FeatureCard({ email, lines, badge, badgeCls, dot, icon, title, desc }: {
+  email: string; lines: string[]; badge: string; badgeCls: string;
+  dot: string; icon: React.ReactNode; title: string; desc: string;
+}) {
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex flex-col gap-5 hover:shadow-md hover:border-violet-100 transition-all duration-200">
+      <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+        <div className="flex items-center gap-2 mb-2.5">
+          <span className={`w-2 h-2 rounded-full ${dot}`} /><span className="text-gray-500 text-xs font-mono truncate">{email}</span>
+        </div>
+        <div className="space-y-0.5 mb-3">{lines.map(l => <div key={l} className="text-xs font-mono text-gray-400">{l}</div>)}</div>
+        <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold ${badgeCls}`}>{badge}</span>
+      </div>
+      <div>
+        <div className="flex items-center gap-2 mb-2"><span className="text-violet-600">{icon}</span><span className="font-semibold text-gray-900 text-sm">{title}</span></div>
+        <p className="text-gray-500 text-sm leading-relaxed">{desc}</p>
+      </div>
+    </div>
+  );
+}
+
+
+
+// ─── Nav ─────────────────────────────────────────────────────────────────────
+function Nav() {
+  const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
-    fetch("/api/settings/plans")
-      .then((r) => r.json())
-      .then((data: { plans: LandingPlanData[] }) => {
-        const map: Record<string, number> = {};
-        for (const { plan, price } of data.plans) map[plan] = price;
-        setPlanPrices(map);
-        const full: Record<string, LandingPlanData> = {};
-        for (const p of data.plans) full[p.plan] = p;
-        setFullPlanData(full);
-      })
-      .catch(() => { });
+    const h = () => setScrolled(window.scrollY > 10);
+    window.addEventListener('scroll', h);
+    return () => window.removeEventListener('scroll', h);
   }, []);
+  return (
+    <nav className={`sticky top-0 z-50 transition-all duration-200 ${scrolled ? 'bg-white/95 backdrop-blur shadow-sm border-b border-gray-100' : 'bg-transparent'}`}>
+      <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+        <Link href="/" className="group">
+          <Logo size={36} invert={true} />
+        </Link>
+        <div className="hidden md:flex items-center gap-8 text-sm text-gray-500">
+          <a href="#demo" className="hover:text-gray-900 transition-colors">Live Demo</a>
+          <a href="#how" className="hover:text-gray-900 transition-colors">How it works</a>
+          <a href="#install" className="hover:text-gray-900 transition-colors">Installation</a>
+          <Link href="/docs" className="hover:text-gray-900 transition-colors">Docs</Link>
+          <a href="#pricing" className="hover:text-gray-900 transition-colors">Pricing</a>
+        </div>
+        <div className="flex items-center gap-3">
+          <Link href="/login" className="text-sm text-gray-500 hover:text-gray-900 transition-colors hidden md:block">Log in</Link>
+          <Link href="/register" className="px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 transition-colors shadow-md shadow-violet-200">
+            Get Started Free
+          </Link>
+        </div>
+      </div>
+    </nav>
+  );
+}
+
+// ─── Landing Page ────────────────────────────────────────────────────────────
+export default function LandingPage() {
+  const [activeTab, setActiveTab] = useState<'html' | 'wordpress'>('html');
+
+  const htmlSnippet = `<!-- Paste just before </body> on your website -->
+<script
+  src="https://leadcop.io/temp-email-validator.js"
+  data-api-key="YOUR_API_KEY">
+</script>`;
 
   return (
-    <div className="min-h-screen bg-white">
-      <Navbar />
+    <div className="min-h-screen bg-white" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <Nav />
 
-      {/* ── HERO ─────────────────────────────────────────── */}
-      <section className="relative min-h-[90vh] flex items-center pt-24 sm:pt-32 pb-16 sm:pb-20 bg-white">
-        <div className="relative mx-auto max-w-7xl px-6 lg:px-12">
-          <motion.div
-            variants={container}
-            initial="hidden"
-            animate="show"
-            className="grid gap-16 lg:grid-cols-2 items-center"
-          >
-            {/* Left: Content */}
-            <div className="text-center lg:text-left">
-              {/* Badge */}
-              <motion.div
-                variants={item}
-                className="mb-6 inline-flex items-center gap-2 rounded-full border border-slate-100 bg-slate-50 px-4 py-1.5"
-              >
-                <Users className="h-3.5 w-3.5 text-slate-400" />
-                <span className="text-xs font-semibold text-slate-500">
-                  Trusted by 500+ businesses globally
-                </span>
-              </motion.div>
-
-              {/* Headline */}
-              <motion.h1
-                variants={item}
-                className="font-heading text-4xl font-bold leading-tight tracking-tight text-slate-900 sm:text-5xl md:text-6xl"
-              >
-                Stop Fake Signups.{" "}
-                <span className="block text-primary/80">Protect Your Revenue.</span>
-              </motion.h1>
-
-              {/* Subheadline */}
-              <motion.p
-                variants={item}
-                className="mt-6 max-w-xl mx-auto lg:mx-0 text-lg text-slate-500 font-medium leading-relaxed"
-              >
-                LeadCop identifies and blocks burner emails instantly, saving your ad spend and keeping your CRM clean.
-                One line of code protects your business forever.
-              </motion.p>
-
-              {/* CTAs */}
-              <motion.div
-                variants={item}
-                className="mt-10 flex flex-col items-center lg:items-start gap-4 sm:flex-row"
-              >
-                <Link
-                  href="/signup"
-                  className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-8 py-4 text-sm font-bold text-white transition-all hover:bg-slate-800 hover:-translate-y-0.5 active:translate-y-0"
-                >
-                  Start for Free
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-                <Link
-                  href="/upgrade"
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-8 py-4 text-sm font-bold text-slate-600 transition-all hover:bg-slate-50"
-                >
-                  View Pricing
-                </Link>
-              </motion.div>
-            </div>
-
-            {/* Right: Live Demo Card */}
-            <motion.div
-              variants={item}
-              className="relative w-full max-w-lg mx-auto lg:mx-0"
-            >
-
-              <LiveDemo email={demoEmail} onEmailChange={setDemoEmail} />
-            </motion.div>
-          </motion.div>
-
-          {/* Bottom Row: Social Proof / Stats */}
-          <motion.div
-            variants={container}
-            initial="hidden"
-            whileInView="show"
-            viewport={{ once: true }}
-            className="mt-20 pt-10 border-t border-slate-100 flex flex-col lg:flex-row items-center justify-between gap-10"
-          >
-            <div className="flex flex-wrap justify-center lg:justify-start gap-8 sm:gap-12">
-              {STATS.map((stat) => (
-                <div key={stat.label}>
-                  <p className="font-heading text-2xl font-bold text-slate-900">{stat.value}</p>
-                  <p className="text-[10px] uppercase tracking-widest font-bold text-slate-400 mt-1">{stat.label}</p>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex flex-wrap justify-center gap-3">
-              {PAIN_POINTS_COMPACT.map((p) => (
-                <div key={p.title} className="flex items-center gap-2 rounded-full border border-slate-100 bg-white px-4 py-2 text-xs font-bold text-slate-500">
-                  <p.icon className="h-3.5 w-3.5 text-slate-900/40" />
-                  {p.title}
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        </div>
-      </section>
-      {/* ── FEATURES (BENTO GRID) ─────────────────────────── */}
-      <section id="features" className="relative py-20 sm:py-32 px-4 sm:px-6 bg-slate-50/40">
-        <div className="mx-auto max-w-6xl">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="mb-16 text-center"
-          >
-            <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">
-              Detection Engine
-            </p>
-            <h2 className="font-heading text-3xl font-bold text-foreground md:text-5xl">
-              Precision Disposable Detection
-            </h2>
-            <p className="mx-auto mt-4 max-w-2xl text-muted-foreground">
-              LeadCop’s multi-layered logic identifies burner emails, relay domains,
-              and role accounts in milliseconds — before they can affect your revenue.
-            </p>
-          </motion.div>
-
-          <PremiumBentoGrid />
-        </div>
-      </section>
-
-
-      {/* ── UNIFIED SETUP HUB ──────────────────────────────── */}
-      <section id="integration" className="relative py-16 sm:py-24 px-4 sm:px-6 overflow-hidden">
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent via-primary/[0.04] to-transparent" />
-        <div className="relative mx-auto max-w-6xl">
-          <div className="grid gap-16 lg:grid-cols-5 items-start">
-
-            {/* Left: How it Works (Steps) */}
-            <div className="lg:col-span-2">
-              <div className="mb-10">
-                <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">
-                  Instant Protection
-                </p>
-                <h2 className="font-heading text-3xl font-bold text-foreground md:text-5xl">
-                  Zero Setup. <br />Infinite Peace.
-                </h2>
-                <p className="mt-4 text-muted-foreground">
-                  No complex SDKs. No framework lock-in. Protective blocking active in your production environment in under 120 seconds.
-                </p>
+      {/* ── Hero ─────────────────────────────────────────────────────────── */}
+      <section className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-violet-50 via-white to-white pointer-events-none" />
+        <div className="absolute top-0 right-0 w-[700px] h-[700px] bg-violet-100/25 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none" />
+        <div className="relative max-w-6xl mx-auto px-6 pt-20 pb-24">
+          <div className="grid lg:grid-cols-2 gap-16 items-center">
+            <div>
+              <div className="inline-flex items-center gap-2 bg-violet-50 text-violet-700 rounded-full px-4 py-1.5 text-sm mb-8 border border-violet-100 font-medium">
+                <Zap className="w-3.5 h-3.5" />Works on any website — no coding needed
               </div>
-
-              <div className="space-y-8">
-                {HOW_IT_WORKS.map((step, i) => (
-                  <motion.div
-                    key={step.step}
-                    initial={{ opacity: 0, x: -20 }}
-                    whileInView={{ opacity: 1, x: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: i * 0.1 }}
-                    className="flex gap-5"
-                  >
-                    <div className="flex-shrink-0 flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 font-heading text-xs font-bold text-primary">
-                      {step.step}
-                    </div>
-                    <div>
-                      <h3 className="font-heading text-base font-bold text-foreground mb-1">{step.title}</h3>
-                      <p className="text-sm text-muted-foreground leading-relaxed">{step.desc}</p>
-                    </div>
-                  </motion.div>
+              <h1 className="text-5xl lg:text-6xl font-semibold text-gray-900 mb-6 leading-[1.1] tracking-tight">
+                Stop fake signups<br /><span className="text-violet-600">before they cost you.</span>
+              </h1>
+              <p className="text-xl text-gray-500 mb-8 leading-relaxed">
+                LeadCop automatically blocks disposable emails, spam bots, and fake accounts from your forms in real time — protecting your list, your ad budget, and your business.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-3 mb-10">
+                <Link href="/register" className="px-7 py-4 bg-violet-600 text-white rounded-xl font-medium hover:bg-violet-700 transition-colors flex items-center justify-center gap-2 group shadow-lg shadow-violet-200">
+                  Start for free<ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+                </Link>
+                <a href="#demo" className="px-7 py-4 bg-white text-gray-800 rounded-xl font-medium border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-colors flex items-center justify-center gap-2">
+                  Try live demo<ChevronDown className="w-4 h-4" />
+                </a>
+              </div>
+              <div className="flex flex-wrap gap-6 text-sm text-gray-500">
+                {['No credit card required', 'Free plan forever', '5-min setup'].map(t => (
+                  <span key={t} className="flex items-center gap-1.5"><Check className="w-4 h-4 text-green-500" />{t}</span>
                 ))}
               </div>
             </div>
-
-            {/* Right: Integration Switcher */}
-            <div className="lg:col-span-3">
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                className="rounded-3xl border border-slate-100 bg-white"
-              >
-                {/* Tab bar */}
-                <div className="flex overflow-x-auto border-b border-slate-200/50 bg-slate-50/50 p-2 gap-2">
-                  {CODE_TABS.map((tab) => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id)}
-                      className={`flex items-center gap-2 px-4 py-2 text-[11px] font-bold uppercase tracking-wider rounded-xl transition-all ${activeTab === tab.id
-                        ? "text-primary bg-white shadow-sm ring-1 ring-slate-200"
-                        : "text-slate-500 hover:text-slate-900 hover:bg-slate-100/50"
-                        }`}
-                    >
-                      <span>{tab.icon}</span>
-                      {tab.label}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="p-8">
-                  <AnimatePresence mode="wait">
-                    <motion.div
-                      key={activeTab}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      transition={{ duration: 0.2 }}
-                    >
-                      {activeTab === "wordpress" ? (
-                        <div className="grid gap-8 sm:grid-cols-2">
-                          <div>
-                            <div className="mb-4 inline-flex items-center gap-2 rounded-lg bg-[#2271b1]/10 px-3 py-1 text-[10px] font-bold text-[#2271b1]">
-                              <WpLogoIcon className="h-3 w-3" /> NO-CODE PLUGIN
-                            </div>
-                            <h4 className="font-heading text-xl font-bold text-slate-900 mb-3">WordPress One-Click</h4>
-                            <p className="text-sm text-slate-500 mb-6 leading-relaxed">
-                              Install LeadCop on your WordPress site to instantly protect WooCommerce, Contact Form 7, and WPForms.
-                            </p>
-                            <a
-                              href="/downloads/leadcop-email-validator.zip?v=1.1"
-                              download
-                              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#2271b1] px-6 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/20 transition-all hover:bg-[#1d5e9a] hover:-translate-y-0.5"
-                            >
-                              <Download className="h-4 w-4" />
-                              Download Plugin
-                            </a>
-                            <p className="mt-4 text-center text-[10px] text-slate-400">Works with all major page builders & form plugins</p>
-                          </div>
-                          <div className="relative rounded-2xl border border-slate-200 bg-slate-50/50 overflow-hidden shadow-inner p-1">
-                            <AdminPanelMockup />
-                          </div>
-                        </div>
-                      ) : (
-                        <div>
-                          <DarkCodeBlock code={currentTab.code} label={currentTab.label} />
-                          <div className="mt-6 flex items-center justify-between px-2">
-                            <p className="text-xs text-slate-500 font-medium italic">Supports all modern environments.</p>
-                            <Link href="/signup" className="text-xs font-bold text-primary hover:underline">Get API Key &rarr;</Link>
-                          </div>
-                        </div>
-                      )}
-                    </motion.div>
-                  </AnimatePresence>
-                </div>
-              </motion.div>
+            <div id="demo">
+              <div className="mb-3 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                <span className="text-sm text-gray-500 font-medium">Live demo — type any email below</span>
+              </div>
+              <LiveDemoWidget />
+              <p className="mt-3 text-xs text-gray-400 text-center">This is exactly what your visitors see when they sign up on your form.</p>
             </div>
-
           </div>
         </div>
       </section>
 
-      {/* ── PRICING ──────────────────────────────────────── */}
-      <section id="pricing" className="relative py-16 sm:py-24 px-4 sm:px-6">
-        <div className="mx-auto max-w-5xl">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="mb-16 text-center"
-          >
-            <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">
-              Pricing
-            </p>
-            <h2 className="font-heading text-3xl font-bold text-foreground md:text-5xl">
-              Transparent scaling
-            </h2>
-            <p className="mx-auto mt-4 max-w-lg text-muted-foreground font-medium">
-              Start protecting your revenue for free. Upgrade as you scale.
-            </p>
-          </motion.div>
+      {/* ── Trust Bar ────────────────────────────────────────────────────── */}
+      <section className="border-y border-gray-100 bg-gray-50/60 py-10">
+        <div className="max-w-5xl mx-auto px-6">
+          <p className="text-center text-xs text-gray-400 uppercase tracking-widest mb-8">Trusted by 5,000+ businesses worldwide</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+            {[{ v: '2.4M+', l: 'Signups checked' }, { v: '99.7%', l: 'Accuracy rate' }, { v: '<100ms', l: 'Check speed' }, { v: '5 min', l: 'To set up' }].map(s => (
+              <div key={s.l}><div className="text-3xl font-semibold text-gray-900">{s.v}</div><div className="text-sm text-gray-500 mt-1">{s.l}</div></div>
+            ))}
+          </div>
+        </div>
+      </section>
 
-          <div className="flex flex-wrap justify-center gap-6">
-            {Object.values(fullPlanData)
-              .sort((a, b) => a.price - b.price)
-              .map((data, i) => {
-                const planKey = data.plan;
-                const meta = PLAN_STATIC[planKey] || {
-                  name: planKey.charAt(0) + planKey.slice(1).toLowerCase(),
-                  period: data.price === 0 ? "forever" : "/month",
-                  desc: "Advanced protection",
-                  staticFeatures: ["Priority support"],
-                  cta: data.price === 0 ? "Start for Free" : "Get Started",
-                  href: data.price === 0 ? "/signup" : "/upgrade",
-                  highlighted: false,
-                };
-                const plan = { planKey, ...meta };
-                return (
-                  <motion.div
-                    key={plan.name}
-                    initial={{ opacity: 0, y: 20 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: i * 0.1 }}
-                    className={`relative flex flex-col rounded-[32px] p-8 border transition-all duration-300 hover:-translate-y-1 w-full md:w-[calc(33.33%-1.5rem)] max-w-sm ${plan.highlighted ? "border-slate-900 bg-white ring-8 ring-slate-50" : "border-slate-100 bg-white"
-                      }`}
-                  >
-                    <div className="mb-6">
-                      <h3 className="font-heading text-xl font-bold text-foreground">
-                        {plan.name}
-                      </h3>
-                      <div className="mt-4 flex items-baseline gap-1">
-                        <span className="font-heading text-4xl font-bold text-foreground">
-                          {formatPlanPrice(plan.planKey, planPrices[plan.planKey] ?? 0)}
-                        </span>
-                        <span className="text-sm font-semibold text-muted-foreground">
-                          {plan.period}
-                        </span>
+      {/* ── How It Works ─────────────────────────────────────────────────── */}
+      <section id="how" className="max-w-5xl mx-auto px-6 py-24">
+        <div className="text-center mb-16">
+          <p className="text-sm font-semibold text-violet-600 uppercase tracking-widest mb-3">Simple by design</p>
+          <h2 className="text-4xl font-semibold text-gray-900 mb-4">How it works</h2>
+          <p className="text-lg text-gray-500 max-w-xl mx-auto">Get your forms protected in three steps. No developer, no coding, no stress.</p>
+        </div>
+        <div className="grid md:grid-cols-3 gap-6">
+          {[
+            { step: '01', icon: <Lock className="w-6 h-6 text-violet-600" />, title: 'Add one line to your website', desc: 'Paste a single script tag before the closing tag on your page — or install the WordPress plugin in 30 seconds.' },
+            { step: '02', icon: <Sparkles className="w-6 h-6 text-violet-600" />, title: 'We check every email silently', desc: "Every time someone fills out your form, LeadCop instantly validates the address in the background. Invisible to real users." },
+            { step: '03', icon: <Shield className="w-6 h-6 text-violet-600" />, title: 'Fake ones are blocked instantly', desc: 'Disposable emails, spam bots, and fake addresses are stopped with a friendly message. Real users sail right through.' },
+          ].map(({ step, icon, title, desc }) => (
+            <div key={step} className="relative bg-white rounded-2xl border border-gray-100 shadow-sm p-8 group hover:shadow-md hover:border-violet-100 transition-all duration-200">
+              <div className="text-6xl font-semibold text-gray-50 absolute top-5 right-5 select-none group-hover:text-violet-50 transition-colors">{step}</div>
+              <div className="w-12 h-12 bg-violet-50 rounded-xl flex items-center justify-center mb-5 group-hover:bg-violet-100 transition-colors">{icon}</div>
+              <h3 className="font-semibold text-gray-900 mb-2 leading-snug">{title}</h3>
+              <p className="text-gray-500 text-sm leading-relaxed">{desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── Installation ─────────────────────────────────────────────────── */}
+      <section id="install" className="bg-white py-24 border-y border-gray-100">
+        <div className="max-w-5xl mx-auto px-6">
+          <div className="grid lg:grid-cols-2 gap-16 items-start">
+            <div>
+              <p className="text-sm font-semibold text-violet-600 uppercase tracking-widest mb-3">Works everywhere</p>
+              <h2 className="text-4xl font-semibold text-gray-900 mb-5 leading-tight">One line of code.<br />Any platform.</h2>
+              <p className="text-gray-500 text-lg mb-8 leading-relaxed">
+                LeadCop connects to any website or signup form — no platform switching, no redesigning, no technical work.
+              </p>
+              <div className="flex flex-wrap gap-2 mb-8">
+                {[
+                  { name: 'WordPress', emoji: '🔌' },
+                  { name: 'HTML Forms', emoji: '📄' },
+                  { name: 'React / Next.js', emoji: '⚛️' },
+                  { name: 'Contact Form 7', emoji: '📋' },
+                  { name: 'WPForms', emoji: '🗂️' },
+                  { name: 'Any Platform', emoji: '🌍' },
+                ].map(p => (
+                  <span key={p.name} className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 text-gray-600 rounded-lg text-sm border border-gray-200 hover:border-violet-300 transition-colors">
+                    <span>{p.emoji}</span>{p.name}
+                  </span>
+                ))}
+              </div>
+              <div className="flex items-center gap-3 p-4 bg-green-50 rounded-xl border border-green-100">
+                <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" />
+                <p className="text-green-800 text-sm"><strong>WordPress plugin available</strong> — install in 30 seconds from the plugin directory.</p>
+              </div>
+            </div>
+            <div>
+              <div className="flex gap-1 mb-4 bg-gray-100 rounded-lg p-1 w-fit">
+                {(['html', 'wordpress'] as const).map(t => (
+                  <button key={t} onClick={() => setActiveTab(t)}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === t ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}>
+                    {t === 'html' ? 'Any Website (HTML)' : '🔌 WordPress Plugin'}
+                  </button>
+                ))}
+              </div>
+              {activeTab === 'html' ? (
+                <div>
+                  <CodeSnippet code={htmlSnippet} />
+                  <p className="mt-3 text-gray-500 text-sm">That's it. LeadCop finds and protects every signup form on your page automatically.</p>
+                  <Link href="/docs" className="mt-4 inline-flex items-center gap-2 text-sm text-violet-600 hover:text-violet-700 transition-colors font-medium">
+                    View full documentation <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
+              ) : (
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                  <div className="flex items-center gap-1.5 px-4 py-2.5 bg-gray-50 border-b border-gray-100">
+                    <span className="w-2.5 h-2.5 rounded-full bg-red-400" /><span className="w-2.5 h-2.5 rounded-full bg-yellow-400" /><span className="w-2.5 h-2.5 rounded-full bg-green-400" />
+                    <span className="ml-2 text-xs text-gray-400 font-mono">WordPress Installation</span>
+                  </div>
+                  <div className="p-6 space-y-4 text-sm text-gray-600">
+                    {['Go to WordPress Dashboard → Plugins → Add New', 'Search for "LeadCop Email Validator"', 'Click Install Now → then Activate', 'Go to Settings → LeadCop', 'Paste your API key and click Save'].map((step, i) => (
+                      <div key={i} className="flex items-start gap-4">
+                        <div className="w-6 h-6 rounded-full bg-violet-100 text-violet-600 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">{i + 1}</div>
+                        <span>{step}</span>
                       </div>
+                    ))}
+                    <div className="flex items-center gap-2.5 pt-2 text-green-600 font-medium">
+                      <CheckCircle2 className="w-5 h-5" /><span>You're protected!</span>
                     </div>
-                    <ul className="mb-10 flex-1 space-y-4">
-                      {buildLandingFeatures(plan.planKey, fullPlanData[plan.planKey] ?? {
-                        plan: plan.planKey,
-                        price: 0,
-                        requestLimit: 0,
-                        websiteLimit: 0,
-                        mxDetectionEnabled: false,
-                        inboxCheckEnabled: false,
-                      }).map((f) => (
-                        <li key={f} className="flex items-start gap-3 text-sm font-medium text-slate-600">
-                          <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                          <span>{f}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    <Link
-                      href={plan.href}
-                      className={`inline-flex w-full items-center justify-center rounded-2xl py-3.5 text-sm font-bold transition-all shadow-lg ${plan.highlighted
-                        ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/20"
-                        : "bg-slate-100 text-slate-800 hover:bg-slate-200 shadow-slate-200/50"
-                        }`}
-                    >
-                      {plan.cta}
-                    </Link>
-                  </motion.div>
-                );
-              })}
-          </div>
-        </div>
-      </section>
-
-      {/* ── CLOSING CTA + NEWSLETTER ─────────────────────── */}
-      <section className="relative py-20 sm:py-32 px-4 sm:px-6">
-        <div className="relative mx-auto max-w-5xl">
-          <div className="rounded-[40px] p-8 sm:p-16 border border-slate-100 flex flex-col lg:flex-row items-center gap-12 text-center lg:text-left bg-slate-50">
-            <div className="flex-1">
-              <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-4 py-1.5">
-                <Shield className="h-3.5 w-3.5 text-primary" />
-                <span className="text-xs font-bold text-primary uppercase tracking-tight">Active Protection</span>
-              </div>
-              <h2 className="font-heading text-3xl font-bold text-foreground sm:text-5xl leading-tight">
-                Your next signup could be fake. <br />
-                <span className="text-primary">Stop it now.</span>
-              </h2>
-              <p className="mt-6 text-lg text-muted-foreground font-medium">
-                Join 500+ businesses protecting their lists from burner emails.
-              </p>
-              <div className="mt-10 flex flex-col sm:flex-row gap-4">
-                <Link
-                  href="/signup"
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-8 py-4 text-sm font-bold text-primary-foreground transition-all hover:bg-primary/90 hover:-translate-y-0.5 shadow-xl shadow-primary/30"
-                >
-                  Start for Free
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-                <Link
-                  href="/upgrade"
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white/50 px-8 py-4 text-sm font-bold text-slate-700 transition-all hover:bg-white hover:-translate-y-0.5"
-                >
-                  View Pricing
-                </Link>
-              </div>
-              <p className="mt-8 text-xs text-muted-foreground">
-                No credit card required &nbsp;·&nbsp; Free plan available &nbsp;·&nbsp; Cancel anytime
-              </p>
-            </div>
-
-            <div className="w-full max-w-sm">
-              <div className="p-8 rounded-3xl bg-white border border-slate-200 shadow-2xl">
-                <p className="text-xs font-bold text-slate-900 mb-4 uppercase tracking-wider">Join LeadCop Intel</p>
-                <NewsletterForm />
-              </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
       </section>
 
-      {/* ── FOOTER ─────────────────────────────────────────── */}
-      <Footer />
+      {/* ── Features Bento Grid ───────────────────────────────────────────── */}
+      <section id="features" className="bg-gray-50 py-24">
+        <div className="max-w-5xl mx-auto px-6">
+          <div className="text-center mb-16">
+            <p className="text-sm font-semibold text-violet-600 uppercase tracking-widest mb-3">Full protection</p>
+            <h2 className="text-4xl font-semibold text-gray-900 mb-4">Every type of fake email, blocked.</h2>
+            <p className="text-lg text-gray-500 max-w-xl mx-auto">LeadCop checks every angle so nothing slips through — without ever bothering your real customers.</p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-5 mb-5">
+            <FeatureCard email="user@mailinator.com" lines={['disposable: true', 'provider: "mailinator"']} badge="BLOCKED" badgeCls="bg-red-100 text-red-600" dot="bg-red-400" icon={<Mail className="w-4 h-4" />} title="Disposable Email Detection" desc="Instantly blocks 200,000+ burner & temporary email providers. Updated daily, zero false positives on real addresses." />
+            <FeatureCard email="user@company.dev-null" lines={['valid_tld: false', 'detected: "unsupported extension"']} badge="BLOCKED" badgeCls="bg-red-100 text-red-600" dot="bg-red-400" icon={<Globe className="w-4 h-4" />} title="Comprehensive TLD Validation" desc="Cross-references every email against a database of 1,400+ official TLDs to catch invalid extensions and malformed domains." />
+            <FeatureCard email="user@privaterelay.appleid.com" lines={['relay_detected: true', 'service: "Apple Private Relay"']} badge="FLAG RELAY" badgeCls="bg-orange-100 text-orange-600" dot="bg-orange-400" icon={<RefreshCw className="w-4 h-4" />} title="Forwarding & Relay Detection" desc="Detects relay services and forwarding domains (like Apple Private Relay or Mozilla Relay) used to mask real identities." />
+          </div>
+          <div className="grid md:grid-cols-2 gap-5 mb-5">
+            <FeatureCard email="admin@yourcompany.com" lines={['role_account: true', 'prefix: "admin"']} badge="FLAG ROLE" badgeCls="bg-orange-100 text-orange-600" dot="bg-orange-400" icon={<AtSign className="w-4 h-4" />} title="Role Address Detection" desc="Flags shared inboxes like info@, support@, admin@ that often cause high unsubscribe rates and poor deliverability." />
+            <FeatureCard email="sarah@acmecorp.com" lines={['real_inbox: true', 'deliverable: true']} badge="✓ ACCEPTED" badgeCls="bg-green-100 text-green-600" dot="bg-green-400" icon={<CheckCircle2 className="w-4 h-4" />} title="Real Inbox Verification" desc="Verifies the inbox actually exists and can receive messages — so your campaigns always reach real people." />
+          </div>
+          <div className="grid md:grid-cols-3 gap-5">
+            <FeatureCard email="john@gmial.com" lines={['typo_detected: true', 'did_you_mean: "gmail.com"']} badge="SUGGEST FIX" badgeCls="bg-yellow-100 text-yellow-700" dot="bg-yellow-400" icon={<Sparkles className="w-4 h-4" />} title="Smart Typo Correction" desc="Catches typos like gmial.com and suggests the right fix so you never lose a real lead." />
+            <FeatureCard email="user@gmail.com" lines={['free_provider: true', 'suggest_work_email: true']} badge="ASK FOR WORK MAIL" badgeCls="bg-blue-100 text-blue-600" dot="bg-blue-400" icon={<UserX className="w-4 h-4" />} title="Free Email Filter" desc="Optionally prompt visitors for their work email — helps you capture higher-quality B2B leads." />
+            <FeatureCard email="hello@bad-domain.m" lines={['syntax_error: true', 'tld_invalid: true']} badge="INVALID" badgeCls="bg-red-100 text-red-600" dot="bg-red-400" icon={<FileWarning className="w-4 h-4" />} title="Syntax Validation" desc="Catches malformed addresses that would bounce and quietly damage your sender reputation." />
+          </div>
+        </div>
+      </section>
+
+      {/* ── Testimonials ─────────────────────────────────────────────────── */}
+      <section className="max-w-5xl mx-auto px-6 py-24">
+        <div className="text-center mb-16">
+          <p className="text-sm font-semibold text-violet-600 uppercase tracking-widest mb-3">Real customers</p>
+          <h2 className="text-4xl font-semibold text-gray-900 mb-4">Their lists got cleaner. Fast.</h2>
+        </div>
+        <div className="grid md:grid-cols-3 gap-6">
+          {[
+            { quote: "I was wasting money on email campaigns to fake addresses. After LeadCop, my open rates jumped from 12% to 34% in one month.", name: "Marcus T.", role: "E-commerce store owner" },
+            { quote: "The WordPress plugin installed in under a minute. I'm not technical at all but had it running before my morning coffee.", name: "Rachel K.", role: "Marketing consultant" },
+            { quote: "We run paid ads to a landing page. LeadCop stopped bots from eating our ad budget with fake signups. ROI improved immediately.", name: "David M.", role: "SaaS founder" },
+          ].map(({ quote, name, role }) => (
+            <div key={name} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-7 hover:shadow-md hover:border-violet-100 transition-all duration-200">
+              <div className="flex gap-0.5 mb-4">{[1, 2, 3, 4, 5].map(i => <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />)}</div>
+              <p className="text-gray-600 text-sm leading-relaxed mb-5">"{quote}"</p>
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center text-violet-600 font-semibold text-sm flex-shrink-0">{name[0]}</div>
+                <div><div className="text-sm font-semibold text-gray-900">{name}</div><div className="text-xs text-gray-400">{role}</div></div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── Pricing ──────────────────────────────────────────────────────── */}
+      <PricingSection />
+
+      {/* ── Newsletter Section (Minimalist) ─────────────────────────────────── */}
+      <section className="py-24 bg-gray-50/50 border-y border-gray-100">
+        <div className="max-w-2xl mx-auto px-6 text-center">
+          <div className="inline-flex items-center gap-2 text-violet-600 font-semibold text-[10px] uppercase tracking-[0.2em] mb-4">
+            <span className="w-8 h-[1px] bg-violet-200" />
+            Stay Updated
+            <span className="w-8 h-[1px] bg-violet-200" />
+          </div>
+          <h2 className="text-3xl font-semibold text-gray-900 mb-4 tracking-tight">Master lead protection.</h2>
+          <p className="text-gray-500 text-sm mb-10 leading-relaxed">
+            Join 5,000+ developers. Weekly insights on anti-spam strategies and deliverability.
+          </p>
+          
+          <NewsletterForm />
+          
+          <p className="mt-8 text-[11px] text-gray-400 font-medium">
+            No spam. Unsubscribe with one click.
+          </p>
+        </div>
+      </section>
+
+      {/* ── Footer ───────────────────────────────────────────────────────── */}
+      <footer className="bg-white py-14 border-t border-gray-100">
+        <div className="max-w-5xl mx-auto px-6">
+          <div className="flex flex-col md:flex-row justify-between gap-10 mb-12">
+            <div className="max-w-xs">
+              <Logo size={34} invert={true} className="mb-4" />
+              <p className="text-gray-500 text-sm leading-relaxed">Protect your signup forms from fake emails, bots, and spam — automatically, on any platform.</p>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-10 text-sm">
+              <div><p className="text-gray-900 font-semibold mb-4">Product</p>{['Features', 'Pricing', 'Live Demo', 'Changelog'].map(l => <a key={l} href="#" className="block text-gray-500 hover:text-violet-600 transition-colors mb-3">{l}</a>)}</div>
+              <div><p className="text-gray-900 font-semibold mb-4">Developers</p>{[{ l: 'Documentation', to: '/docs' }, { l: 'HTML Integration', to: '/docs' }, { l: 'WordPress Plugin', to: '/docs' }, { l: 'REST API', to: '/docs' }].map(({ l, to }) => <Link key={l} href={to} className="block text-gray-500 hover:text-violet-600 transition-colors mb-3">{l}</Link>)}</div>
+              <div><p className="text-gray-900 font-semibold mb-4">Company</p>{['About', 'Blog', 'Contact', 'Privacy', 'Terms'].map(l => <a key={l} href="#" className="block text-gray-500 hover:text-violet-600 transition-colors mb-3">{l}</a>)}</div>
+            </div>
+          </div>
+          <div className="border-t border-gray-100 pt-8 flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-gray-400">
+            <p>© 2026 LeadCop. All rights reserved.</p>
+            <p>Made to protect your business — not complicate it.</p>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
+

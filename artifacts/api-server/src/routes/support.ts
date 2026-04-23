@@ -98,7 +98,7 @@ router.get("/tickets", requireAuth, async (req: Request, res: Response) => {
     .orderBy(desc(supportTicketsTable.updatedAt));
 
   res.json({
-    tickets: tickets.map(t => ({
+    tickets: tickets.map((t: any) => ({
       ...t,
       createdAt: t.createdAt.toISOString(),
       updatedAt: t.updatedAt.toISOString(),
@@ -213,7 +213,7 @@ router.get("/tickets/:id", requireAuth, async (req: Request, res: Response) => {
       createdAt: ticket.createdAt.toISOString(),
       updatedAt: ticket.updatedAt.toISOString(),
     },
-    messages: messages.map(m => ({ ...m, createdAt: m.createdAt.toISOString() })),
+    messages: messages.map((m: any) => ({ ...m, createdAt: m.createdAt.toISOString() })),
   });
 });
 
@@ -300,7 +300,7 @@ router.get("/admin/tickets", requireAdmin, async (_req: Request, res: Response) 
     .orderBy(desc(supportTicketsTable.updatedAt));
 
   res.json({
-    tickets: tickets.map(t => ({
+    tickets: tickets.map((t: any) => ({
       ...t,
       createdAt: t.createdAt.toISOString(),
       updatedAt: t.updatedAt.toISOString(),
@@ -349,7 +349,7 @@ router.get("/admin/tickets/:id", requireAdmin, async (req: Request, res: Respons
       createdAt: ticket.createdAt.toISOString(),
       updatedAt: ticket.updatedAt.toISOString(),
     },
-    messages: messages.map(m => ({ ...m, createdAt: m.createdAt.toISOString() })),
+    messages: messages.map((m: any) => ({ ...m, createdAt: m.createdAt.toISOString() })),
   });
 });
 

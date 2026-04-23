@@ -41,7 +41,13 @@ export async function getPlanConfig(plan: string) {
       maxBulkEmails: 0,
       mxDetectionEnabled: false,
       inboxCheckEnabled: false,
+      rateLimitPerSecond: plan === "PRO" ? 5 : 1,
+      hasUserCheckGates: plan === "PRO",
     };
   }
-  return config;
+  return {
+    ...config,
+    rateLimitPerSecond: plan === "PRO" ? 5 : 1,
+    hasUserCheckGates: plan === "PRO",
+  };
 }

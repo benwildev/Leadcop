@@ -26,7 +26,7 @@ const updateBlogPostSchema = createBlogPostSchema.partial();
 function serializePost(p: typeof blogPostsTable.$inferSelect) {
   return {
     ...p,
-    tags: p.tags ? p.tags.split(",").map(t => t.trim()).filter(Boolean) : [],
+    tags: p.tags ? p.tags.split(",").map((t: any) => t.trim()).filter(Boolean) : [],
     publishedAt: p.publishedAt?.toISOString() ?? null,
     createdAt: p.createdAt.toISOString(),
     updatedAt: p.updatedAt.toISOString(),
@@ -63,16 +63,16 @@ router.get("/blog/posts", async (req: Request, res: Response) => {
     .offset(offset);
 
   const filtered = tag
-    ? posts.filter(p => p.tags?.split(",").map(t => t.trim().toLowerCase()).includes(tag))
+    ? posts.filter((p: any) => p.tags?.split(",").map((t: any) => t.trim().toLowerCase()).includes(tag))
     : posts;
 
   const hasMore = filtered.length > limit;
   const results = hasMore ? filtered.slice(0, limit) : filtered;
 
   res.json({
-    posts: results.map(p => ({
+    posts: results.map((p: any) => ({
       ...p,
-      tags: p.tags ? p.tags.split(",").map(t => t.trim()).filter(Boolean) : [],
+      tags: p.tags ? p.tags.split(",").map((t: any) => t.trim()).filter(Boolean) : [],
       publishedAt: p.publishedAt?.toISOString() ?? null,
       createdAt: p.createdAt.toISOString(),
     })),

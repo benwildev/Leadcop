@@ -23,10 +23,13 @@ import {
   isFreeEmail,
   checkDnsbl,
   getDomainSuggestion,
+  isGibberish,
+  isForwardingEmail,
   FREE_EMAIL_PROVIDERS,
 } from "../lib/reputation.js";
 import { fireWebhook } from "../lib/webhooks.js";
 import { verifySmtp } from "../lib/smtp-verifier.js";
+import { isValidTld } from "../lib/tld-validator.js";
 import dns from "dns";
 
 const dnsPromises = dns.promises;
@@ -47,7 +50,7 @@ const RATE_LIMIT_PER_KEY = 100; // Max 100 requests per minute per API key
  * Check if API key has exceeded rate limit
  * @returns true if within limit, false if exceeded
  */
-function checkApiKeyRateLimit(apiKey: string): boolean {
+function checkApiKeyRateLimit(apiKey: string, limitPerMinute: number): boolean {
   const now = Date.now();
   const existing = apiKeyRateLimits.get(apiKey);
 
@@ -57,7 +60,7 @@ function checkApiKeyRateLimit(apiKey: string): boolean {
     return true;
   }
 
-  if (existing.count >= RATE_LIMIT_PER_KEY) {
+  if (existing.count >= limitPerMinute) {
     return false;
   }
 
@@ -247,7 +250,7 @@ async function checkOriginAllowed(req: Request, userId: number): Promise<{ allow
   }
 
   const isAllowed = allowedWebsites.some(
-    (w) => requestDomain === w.domain || requestDomain.endsWith(`.${w.domain}`)
+    (w: any) => requestDomain === w.domain || requestDomain.endsWith(`.${w.domain}`)
   );
 
   if (!isAllowed) {
@@ -288,7 +291,7 @@ async function checkPageAllowed(req: Request, userId: number): Promise<{ allowed
 
   // Check if the request path starts with any of the configured allowed paths.
   const isAllowed = allowedPages.some(
-    (p) => requestPath === p.path.toLowerCase() || requestPath.startsWith(p.path.toLowerCase() + "/")
+    (p: any) => requestPath === p.path.toLowerCase() || requestPath.startsWith(p.path.toLowerCase() + "/")
   );
 
   if (!isAllowed) {
@@ -314,6 +317,8 @@ interface ChecksResult {
   dnsblHit: boolean | null | undefined;
   smtpValid: boolean | null | undefined;
   catchAll: boolean | null | undefined;
+  isInvalidTld: boolean | undefined;
+  isForwarding: boolean | undefined;
 }
 
 export async function performChecks(
@@ -325,7 +330,11 @@ export async function performChecks(
   const domain = domainRaw?.toLowerCase() ?? "";
   const isValidSyntax = z.string().email().safeParse(email).success;
   const isFree = isFreeEmail(domain);
+  const isForwarding = isForwardingEmail(domain);
   const didYouMean = getDomainSuggestion(domain);
+
+  const tld = domain.split(".").pop() ?? "";
+  const isInvalidTld = !isValidTld(tld);
 
   const [blocked] = await db
     .select({ id: customBlocklistTable.id })
@@ -384,6 +393,8 @@ export async function performChecks(
     dnsblHit: dnsblHit === true ? true : undefined,
     smtpValid: smtpValid,
     roleAccount,
+    isInvalidTld,
+    isForwarding,
   });
 
   const riskLevel = computeRiskLevel(reputationScore);
@@ -394,6 +405,8 @@ export async function performChecks(
     roleAccount,
     freeProvider: isFree,
     dnsblHit: dnsblHit === true ? true : undefined,
+    isInvalidTld,
+    isForwarding,
   });
 
   return {
@@ -413,6 +426,8 @@ export async function performChecks(
     isFreeEmail: isFree,
     didYouMean,
     smtpDetails,
+    isInvalidTld,
+    isForwarding,
   };
 }
 
@@ -452,12 +467,12 @@ async function dispatchWebhooks(
   };
 
   const subscribed = webhooks.filter(
-    (wh) => Array.isArray(wh.events) && (wh.events as string[]).includes(EVENT)
+    (wh: any) => Array.isArray(wh.events) && (wh.events as string[]).includes(EVENT)
   );
 
   if (subscribed.length === 0) return;
 
-  Promise.allSettled(subscribed.map((wh) => fireWebhook(wh.url, wh.secret, payload)));
+  Promise.allSettled(subscribed.map((wh: any) => fireWebhook(wh.url, wh.secret, payload)));
 }
 
 // ─── POST /api/check-email/demo ────────────────────────────────────────────────
@@ -476,15 +491,27 @@ router.post("/check-email/demo", async (req, res) => {
   // 🧠 Brain: Check for typos first (gmail.co -> gmail.com)
   const didYouMean = getDomainSuggestion(domain);
 
+  const tld = domain.split(".").pop() ?? "";
+  const isInvalidTldFlag = !isValidTld(tld);
+
+  // 🧠 Brain: Check for gibberish local part (dfgfthtfg...)
+  const localPart = result.data.email.split("@")[0] || "";
+  const isGibberishFlag = isGibberish(localPart);
+
   // 🧠 Brain: Ensure Free Providers like Gmail are NEVER marked as disposable in the demo
   const isFree = isFreeEmail(domain);
+  const isForwardingFlag = isForwardingEmail(domain);
   const isDisposable = !isFree && isDisposableDomain(domain);
 
   res.json({
-    isDisposable,
+    isDisposable: isDisposable || isInvalidTldFlag,
+    isForwarding: isForwardingFlag,
+    isFree,
     didYouMean,
+    isGibberish: isGibberishFlag,
+    isInvalidTld: isInvalidTldFlag,
     domain,
-    reputationScore: isDisposable ? 0 : 100,
+    reputationScore: (isDisposable || isInvalidTldFlag) ? 0 : 100,
     requestsRemaining: 999,
   });
 });
@@ -515,10 +542,11 @@ router.post("/check-email", async (req, res) => {
   if (isApiKeyAuth) {
     const authHeader = req.headers.authorization;
     const apiKey = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : "";
+    const limitPerMinute = (planConfig.rateLimitPerSecond || 1) * 60;
 
-    if (apiKey && !checkApiKeyRateLimit(apiKey)) {
+    if (apiKey && !checkApiKeyRateLimit(apiKey, limitPerMinute)) {
       res.status(429).json({
-        error: "Too many requests. Rate limit: 100 requests per minute per API key.",
+        error: `Too many requests. Your ${userPlan} plan limit is ${planConfig.rateLimitPerSecond} req/sec (${limitPerMinute} req/min).`,
         retryAfter: 60,
       });
       return;
@@ -528,6 +556,7 @@ router.post("/check-email", async (req, res) => {
   if (isApiKeyAuth) {
     const origin = await checkOriginAllowed(req, userId);
     if (!origin.allowed) {
+      // UserCheck Gates enforcement: allowed even on free if it's just a check, but strictly blocked if origin is invalid
       res.status(403).json({ error: origin.reason });
       return;
     }
@@ -535,6 +564,15 @@ router.post("/check-email", async (req, res) => {
     const page = await checkPageAllowed(req, userId);
     if (!page.allowed) {
       res.status(403).json({ error: page.reason });
+      return;
+    }
+
+    // 🔒 UserCheck Gates specific enforcement: Redirect/Block logic only for PRO
+    if (!planConfig.hasUserCheckGates && req.headers["x-leadcop-gate"]) {
+      res.status(403).json({ 
+        error: "UserCheck Gates are only available on PRO plans. Please upgrade to enable protection on your forms.",
+        planRequired: "PRO" 
+      });
       return;
     }
   }
@@ -575,6 +613,7 @@ router.post("/check-email", async (req, res) => {
 
   res.json({
     isDisposable,
+    isForwarding: checks.isForwarding,
     domain: checks.domain,
     reputationScore: checks.reputationScore,
     riskLevel: checks.riskLevel,
@@ -595,135 +634,6 @@ router.post("/check-email", async (req, res) => {
     hasInboxFull: checks.smtpDetails?.hasInboxFull ?? null,
     dnsblHit: checks.dnsblHit ?? null,
     smtpValid: checks.smtpValid ?? null,
-  });
-});
-
-// ─── POST /api/check-emails/bulk ─────────────────────────────────────────────
-
-router.post("/check-emails/bulk", async (req, res) => {
-  const auth = await resolveAuth(req);
-
-  if (!auth) {
-    if (req.headers.authorization) {
-      res.status(401).json({ error: "Invalid API key" });
-    } else {
-      res.status(401).json({ error: "API key required. Pass Authorization: Bearer <your_api_key>" });
-    }
-    return;
-  }
-
-  const { userId, userPlan, requestCount, isApiKeyAuth, blockFreeEmails } = auth;
-  const planConfig = await getPlanConfig(userPlan);
-
-  const maxBulkEmails = planConfig.maxBulkEmails ?? 0;
-
-  if (maxBulkEmails === 0) {
-    res.status(403).json({
-      error: userPlan === "FREE"
-        ? "Bulk verification is not available on the FREE plan. Please upgrade to BASIC or PRO."
-        : "Bulk verification is not enabled for your plan. Contact support or upgrade.",
-      planRequired: "BASIC",
-    });
-    return;
-  }
-
-  const result = bulkCheckSchema.safeParse(req.body);
-  if (!result.success) {
-    res.status(400).json({ error: `Invalid request. Provide an 'emails' array with 1-${maxBulkEmails} valid email addresses.` });
-    return;
-  }
-
-  const { emails } = result.data;
-
-  if (emails.length > maxBulkEmails) {
-    res.status(400).json({
-      error: `Your plan allows up to ${maxBulkEmails} emails per bulk request. Submitted ${emails.length}. Reduce batch size or upgrade your plan.`,
-      maxBulkEmails,
-    });
-    return;
-  }
-
-  const remaining = planConfig.requestLimit - requestCount;
-  if (remaining <= 0) {
-    res.status(429).json({ error: "Rate limit exceeded. Please upgrade your plan." });
-    return;
-  }
-
-  if (emails.length > remaining) {
-    res.status(429).json({
-      error: `Rate limit: only ${remaining} request(s) remaining but ${emails.length} emails submitted. Reduce batch size or upgrade your plan.`,
-      requestsRemaining: remaining,
-    });
-    return;
-  }
-
-  if (isApiKeyAuth) {
-    const origin = await checkOriginAllowed(req, userId);
-    if (!origin.allowed) {
-      res.status(403).json({ error: origin.reason });
-      return;
-    }
-
-    const page = await checkPageAllowed(req, userId);
-    if (!page.allowed) {
-      res.status(403).json({ error: page.reason });
-      return;
-    }
-  }
-
-  await db
-    .update(usersTable)
-    .set({ requestCount: requestCount + emails.length })
-    .where(eq(usersTable.id, userId));
-
-  const results = await Promise.all(
-    emails.map(async (email) => {
-      try {
-        const checks = await performChecks(email, userId, planConfig);
-        await db.insert(apiUsageTable).values({
-          userId,
-          endpoint: "/check-emails/bulk",
-          email,
-          domain: checks.domain,
-          isDisposable: checks.disposable || (blockFreeEmails && checks.isFreeEmail),
-          reputationScore: checks.reputationScore,
-        });
-
-        const isDisposable = checks.disposable || (blockFreeEmails && checks.isFreeEmail);
-        void dispatchWebhooks(userId, email, checks.domain, isDisposable, checks.reputationScore, isApiKeyAuth).catch(() => {});
-
-        return {
-          email,
-          isDisposable,
-          domain: checks.domain,
-          reputationScore: checks.reputationScore,
-          riskLevel: checks.riskLevel,
-          tags: checks.tags,
-          roleAccount: checks.roleAccount,
-          ...(planConfig.mxDetectionEnabled ? { mxValid: checks.mxValidResult ?? false } : {}),
-          ...(planConfig.inboxCheckEnabled ? { inboxSupport: checks.inboxSupportResult ?? false } : {}),
-          ...(planConfig.plan === "BASIC" || planConfig.plan === "PRO"
-            ? { dnsblHit: checks.dnsblHit ?? null }
-            : {}),
-          ...(planConfig.plan === "PRO"
-            ? {
-                smtpValid: checks.smtpValid ?? null,
-                catchAll: checks.catchAll ?? null,
-              }
-            : {}),
-        };
-      } catch {
-        return { email, error: "Failed to check email" };
-      }
-    })
-  );
-
-  const disposableCount = results.filter((r) => !("error" in r) && r.isDisposable).length;
-
-  res.json({
-    results,
-    totalChecked: emails.length,
-    disposableCount,
   });
 });
 

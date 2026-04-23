@@ -145,7 +145,7 @@ export function BrandingSection() {
               label="Logo"
               value={form.logoUrl}
               onChange={(url) => setForm((f) => ({ ...f, logoUrl: url }))}
-              hint="Replaces the default Shield icon in the navbar — PNG, SVG or WebP recommended"
+              hint="Replaces the default mark. Ideal size: 250×100 px (horizontal) or 160×160 px (square). High-res: 1024×768 px."
             />
             <CloudinaryUpload
               label="Favicon"

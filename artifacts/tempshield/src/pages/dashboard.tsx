@@ -7,7 +7,7 @@ import {
   type DashboardDataWithPlanConfig,
 } from "@workspace/api-client-react";
 import {
-  BarChart3, TrendingUp, Layers, Key, Webhook, ShieldBan,
+  BarChart3, TrendingUp, Key, Webhook, ShieldBan,
   ListFilter, CreditCard, Globe, MessageSquare, Activity, ArrowUpRight,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -20,14 +20,12 @@ import WebhooksTab from "./dashboard/tabs/WebhooksTab";
 import BlocklistTab from "./dashboard/tabs/BlocklistTab";
 import SettingsTab from "./dashboard/tabs/SettingsTab";
 import BillingTab from "./dashboard/tabs/BillingTab";
-import BulkVerifyTab from "./dashboard/tabs/BulkVerifyTab";
 
-type Tab = "overview" | "analytics" | "keys" | "webhooks" | "blocklist" | "settings" | "audit" | "billing" | "bulk";
+type Tab = "overview" | "analytics" | "keys" | "webhooks" | "blocklist" | "settings" | "audit" | "billing";
 
 const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: "overview", label: "Overview", icon: BarChart3 },
   { id: "analytics", label: "Analytics", icon: TrendingUp },
-  { id: "bulk", label: "Bulk Verify", icon: Layers },
   { id: "keys", label: "API Keys", icon: Key },
   { id: "webhooks", label: "Webhooks", icon: Webhook },
   { id: "blocklist", label: "Blocklist", icon: ShieldBan },
@@ -137,9 +135,6 @@ export default function DashboardPage() {
               {activeTab === "blocklist" && <BlocklistTab plan={data.user.plan} />}
               {activeTab === "audit" && <AuditLogTab />}
               {activeTab === "billing" && <BillingTab />}
-              {activeTab === "bulk" && (
-                <BulkVerifyTab plan={data.user.plan} maxBulkEmails={data.planConfig.maxBulkEmails} />
-              )}
               {activeTab === "settings" && (
                 <SettingsTab planConfig={data.planConfig} plan={data.user.plan} />
               )}

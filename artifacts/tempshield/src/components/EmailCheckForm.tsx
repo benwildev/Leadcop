@@ -16,6 +16,7 @@ export default function EmailCheckForm({ email, onEmailChange, apiUrl = "/api/ch
     isDisposable: boolean;
     domain: string;
     didYouMean: string | null;
+    isGibberish?: boolean;
   } | null>(null);
 
   const runCheck = useCallback(async (emailValue: string) => {
@@ -25,7 +26,7 @@ export default function EmailCheckForm({ email, onEmailChange, apiUrl = "/api/ch
     }
     const domain = extractDomain(emailValue);
     if (KNOWN_DISPOSABLE_DOMAINS.has(domain)) {
-      setResult({ isDisposable: true, domain, didYouMean: null });
+      setResult({ isDisposable: true, domain, didYouMean: null, isGibberish: false });
       return;
     }
     setChecking(true);
@@ -40,10 +41,11 @@ export default function EmailCheckForm({ email, onEmailChange, apiUrl = "/api/ch
       setResult({ 
         isDisposable: !!data.isDisposable, 
         domain,
-        didYouMean: data.didYouMean || null 
+        didYouMean: data.didYouMean || null,
+        isGibberish: !!data.isGibberish
       });
     } catch {
-      setResult({ isDisposable: false, domain, didYouMean: null });
+      setResult({ isDisposable: false, domain, didYouMean: null, isGibberish: false });
     } finally {
       setChecking(false);
     }
@@ -52,14 +54,21 @@ export default function EmailCheckForm({ email, onEmailChange, apiUrl = "/api/ch
   useEffect(() => {
     setResult(null);
     setChecking(false);
-    if (isValidEmail(email)) {
-      runCheck(email);
-    }
+    
+    // ⏲️ UX: Add a 500ms debounce so suggestions appear "after input type" (pausing)
+    const timer = setTimeout(() => {
+      if (isValidEmail(email)) {
+        runCheck(email);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
   }, [email, runCheck]);
 
   const showError = result?.isDisposable === true;
-  const showSuggestion = result?.didYouMean !== null;
-  const showSuccess = result?.isDisposable === false && !showSuggestion && isValidEmail(email);
+  const showSuggestion = !!result?.didYouMean;
+  const showGibberish = !!result?.isGibberish && !showError && !showSuggestion;
+  const showSuccess = result?.isDisposable === false && !showSuggestion && !showGibberish && isValidEmail(email);
 
   const applySuggestion = () => {
     if (!result?.didYouMean) return;
@@ -70,32 +79,12 @@ export default function EmailCheckForm({ email, onEmailChange, apiUrl = "/api/ch
   return (
     <div className={`p-8 w-full max-w-sm rounded-[32px] border transition-all duration-300 ${
       showError ? "border-red-100 bg-red-50/30" : 
-      showSuggestion ? "border-amber-100 bg-amber-50/30" :
+      (showSuggestion || showGibberish) ? "border-amber-100 bg-amber-50/30" :
       "border-primary/10 bg-white shadow-sm shadow-slate-100/50"
     }`}>
-      <div className="mb-6 flex items-center gap-2">
-        <Shield className={`h-5 w-5 ${showError ? "text-red-500" : showSuggestion ? "text-amber-500" : "text-primary"}`} />
-        <h3 className="font-heading text-base font-bold text-slate-800">
-          Create Account
-        </h3>
-      </div>
       <div className="space-y-4">
-        {/* 👤 RESTORED: Full Name Field */}
         <div>
-          <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
-            Full Name
-          </label>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="w-full rounded-xl border border-slate-100 bg-white px-4 py-3 text-sm text-slate-700 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium"
-            placeholder="Jane Doe"
-          />
-        </div>
-
-        <div>
-          <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
+          <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">
             Email Address
           </label>
           <div className="relative">
@@ -106,7 +95,7 @@ export default function EmailCheckForm({ email, onEmailChange, apiUrl = "/api/ch
               className={`w-full rounded-xl border px-4 py-3 text-sm text-slate-700 placeholder:text-slate-300 focus:outline-none focus:ring-2 transition-all font-medium ${
                 showError
                   ? "border-red-200 bg-white focus:ring-red-100"
-                  : showSuggestion
+                  : (showSuggestion || showGibberish)
                     ? "border-amber-200 bg-white focus:ring-amber-100"
                     : showSuccess
                       ? "border-emerald-200 bg-white focus:ring-emerald-100"
@@ -121,32 +110,43 @@ export default function EmailCheckForm({ email, onEmailChange, apiUrl = "/api/ch
               {!checking && showSuccess && (
                 <CheckCircle2 className="h-4 w-4 text-emerald-500" />
               )}
-              {!checking && (showError || showSuggestion) && (
-                <ShieldAlert className={`h-4 w-4 ${showError ? "text-red-500" : "text-amber-500"}`} />
+              {!checking && (showError || showSuggestion || showGibberish) && (
+                <ShieldAlert className={`h-4 w-4 ${showError ? "text-red-500" : (showSuggestion || showGibberish) ? "text-amber-500" : "text-primary"}`} />
               )}
             </div>
           </div>
           <AnimatePresence>
-             {/* 🧠 Logic: Suggestions take priority over "Disposable" errors for domains like gamil.com */}
+             {/* 🧠 Logic: Suggestions and Gibberish warnings take priority */}
             {showSuggestion ? (
               <motion.div
                 key="suggestion"
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                className="mt-2 pl-1"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="mt-2 text-center"
               >
                  <p className="text-[11px] text-amber-600 font-bold">
                     Did you mean <button onClick={applySuggestion} className="underline decoration-amber-300 underline-offset-2 hover:text-amber-700 transition-colors">{result?.didYouMean}</button>?
                  </p>
               </motion.div>
+            ) : showGibberish ? (
+              <motion.p
+                key="gib"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="mt-2 text-[11px] text-amber-600 font-bold text-center"
+                role="alert"
+              >
+                Suspicious Pattern: Likely gibberish.
+              </motion.p>
             ) : showError ? (
               <motion.p
                 key="err"
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                className="mt-2 text-[11px] text-red-500 font-bold pl-1"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="mt-2 text-[11px] text-red-500 font-bold text-center"
                 role="alert"
               >
                 Temporary email addresses are not allowed.
@@ -154,10 +154,10 @@ export default function EmailCheckForm({ email, onEmailChange, apiUrl = "/api/ch
             ) : showSuccess ? (
               <motion.p
                 key="ok"
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                className="mt-2 text-[11px] text-emerald-500 font-bold flex items-center gap-1.5 pl-1"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="mt-2 text-[11px] text-emerald-500 font-bold flex items-center justify-center gap-1.5"
                 role="status"
               >
                 <CheckCircle2 className="h-3.5 w-3.5" /> Fast Detection: Valid entry
@@ -166,16 +166,15 @@ export default function EmailCheckForm({ email, onEmailChange, apiUrl = "/api/ch
           </AnimatePresence>
         </div>
         
-        {/* 🎨 BRAND COLOR: Switched back to Primary Purple/Indigo */}
         <button
           disabled={showError || !isValidEmail(email)}
-          className="w-full rounded-xl bg-primary py-4 text-sm font-bold text-white transition-all hover:bg-primary/90 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-40 disabled:cursor-not-allowed uppercase tracking-widest mt-2 shadow-lg shadow-primary/20"
+          className="w-full rounded-xl bg-primary py-4 text-sm font-bold text-white transition-all hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed uppercase tracking-widest mt-2 shadow-lg shadow-primary/20"
         >
-          Sign Up
+          Verify Now
         </button>
       </div>
       <p className="mt-4 text-center text-[10px] font-bold text-slate-300 uppercase tracking-widest">
-        Protected by LeadCop
+        LeadCop Scanner
       </p>
     </div>
   );

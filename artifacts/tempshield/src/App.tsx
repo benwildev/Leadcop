@@ -16,7 +16,6 @@ const DashboardPage = React.lazy(() => import("./pages/dashboard"));
 const DocsPage = React.lazy(() => import("./pages/docs"));
 const UpgradePage = React.lazy(() => import("./pages/upgrade"));
 const AdminPage = React.lazy(() => import("./pages/admin"));
-const VerifyPage = React.lazy(() => import("./pages/verify"));
 const SupportPage = React.lazy(() => import("./pages/support"));
 const SupportNewPage = React.lazy(() => import("./pages/support-new"));
 const SupportTicketPage = React.lazy(() => import("./pages/support-ticket"));
@@ -58,7 +57,6 @@ function Router() {
         <Route path="/" component={LandingPage} />
         <Route path="/pricing" component={PricingPage} />
         <Route path="/docs" component={DocsPage} />
-        <Route path="/verify" component={VerifyPage} />
         <Route path="/login" component={LoginPage} />
         <Route path="/signup" component={RegisterPage} />
         <Route path="/forgot-password" component={ForgotPasswordPage} />
