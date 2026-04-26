@@ -8,7 +8,9 @@ import { useGetBlocklist, useAddBlocklistEntry, useDeleteBlocklistEntry, type Bl
 import { errMsg } from "../utils";
 import { GlassCard, EmptyState, ActionButton } from "@/components/shared";
 
-export default function BlocklistTab({ plan }: { plan: string }) {
+import type { DashboardPlanConfig } from "@workspace/api-client-react";
+
+export default function BlocklistTab({ plan, planConfig }: { plan: string; planConfig: DashboardPlanConfig }) {
   const qc = useQueryClient();
   const listQuery = useGetBlocklist();
   const addMutation = useAddBlocklistEntry();
@@ -16,7 +18,7 @@ export default function BlocklistTab({ plan }: { plan: string }) {
   const [input, setInput] = useState("");
   const [error, setError] = useState("");
 
-  if (plan === "FREE") {
+  if (!planConfig.hasCustomBlocklist) {
     return (
       <div className="space-y-6 max-w-3xl">
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>

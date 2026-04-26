@@ -19,6 +19,7 @@ export const usersTable = pgTable("users", {
   blockFreeEmails: boolean("block_free_emails").notNull().default(false),
   resetToken: text("reset_token"),
   resetTokenExpiresAt: timestamp("reset_token_expires_at"),
+  parentId: integer("parent_id"), // NULL for master account, set to master account's ID for sub-users
 });
 
 export const insertUserSchema = createInsertSchema(usersTable).omit({ id: true, createdAt: true });

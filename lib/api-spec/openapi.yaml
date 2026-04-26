@@ -640,10 +640,10 @@ components:
         plan:
           type: string
           enum: [FREE, BASIC, PRO]
+        requestLimit:
+          type: integer
         note:
           type: string
-      required:
-        - plan
 
     UpgradeRequestsResponse:
       type: object

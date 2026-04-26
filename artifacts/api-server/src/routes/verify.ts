@@ -147,10 +147,17 @@ async function cachedSmtpCheck(domain: string, email: string): Promise<{ smtpRes
   if (hit && hit.expiresAt > Date.now()) {
     return { smtpResult: hit.result, mxValid: hit.mxValid };
   }
-  const [mxValid, smtpResult] = await Promise.all([
-    checkMx(domain),
-    verifySmtp(email),
-  ]);
+  const mxValid = await checkMx(domain);
+  const smtpResult = {
+    canConnect: false,
+    mxAcceptsMail: false,
+    isDeliverable: false,
+    isCatchAll: false,
+    hasInboxFull: false,
+    isDisabled: false,
+    mxRecords: [],
+  };
+  
   smtpCache.set(cacheKey, { result: smtpResult, mxValid, expiresAt: Date.now() + SMTP_CACHE_TTL_MS });
   return { smtpResult, mxValid };
 }

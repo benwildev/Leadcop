@@ -22,7 +22,9 @@ X-LeadCop-Signature: sha256=<hmac-hex>
   "timestamp": "2026-01-01T00:00:00.000Z"
 }`;
 
-export default function WebhooksTab({ plan }: { plan: string }) {
+import type { DashboardPlanConfig } from "@workspace/api-client-react";
+
+export default function WebhooksTab({ plan, planConfig }: { plan: string; planConfig: DashboardPlanConfig }) {
   const qc = useQueryClient();
   const hooksQuery = useGetUserWebhooks();
   const createMutation = useCreateUserWebhook();
@@ -33,8 +35,8 @@ export default function WebhooksTab({ plan }: { plan: string }) {
   const [error, setError] = useState("");
 
   const webhooks = hooksQuery.data?.webhooks ?? [];
-  const canCreate = hooksQuery.data?.canCreate ?? (plan === "PRO");
-  const isPro = plan === "PRO";
+  const canCreate = hooksQuery.data?.canCreate ?? planConfig.hasWebhooks;
+  const hasWebhooks = planConfig.hasWebhooks;
 
   const handleCreate = async () => {
     if (!url.trim()) return;
@@ -59,7 +61,7 @@ export default function WebhooksTab({ plan }: { plan: string }) {
     qc.invalidateQueries({ queryKey: ["/api/user/webhooks"] });
   };
 
-  if (!isPro) {
+  if (!hasWebhooks) {
     return (
       <div className="space-y-6 max-w-3xl">
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>

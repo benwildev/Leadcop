@@ -1,17 +1,14 @@
 import React, { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
-import { Navbar, PageTransition } from "@/components/Layout";
 import {
   useGetDashboard,
   useRegenerateApiKey,
   type DashboardDataWithPlanConfig,
 } from "@workspace/api-client-react";
-import {
-  BarChart3, TrendingUp, Key, Webhook, ShieldBan,
-  ListFilter, CreditCard, Globe, MessageSquare, Activity, ArrowUpRight,
-} from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { motion, AnimatePresence } from "framer-motion";
+import { DashboardSidebar, type DashboardTab } from "@/components/DashboardSidebar";
+import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 import OverviewTab from "./dashboard/tabs/OverviewTab";
 import AnalyticsTab from "./dashboard/tabs/AnalyticsTab";
 import AuditLogTab from "./dashboard/tabs/AuditLogTab";
@@ -20,19 +17,8 @@ import WebhooksTab from "./dashboard/tabs/WebhooksTab";
 import BlocklistTab from "./dashboard/tabs/BlocklistTab";
 import SettingsTab from "./dashboard/tabs/SettingsTab";
 import BillingTab from "./dashboard/tabs/BillingTab";
-
-type Tab = "overview" | "analytics" | "keys" | "webhooks" | "blocklist" | "settings" | "audit" | "billing";
-
-const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
-  { id: "overview", label: "Overview", icon: BarChart3 },
-  { id: "analytics", label: "Analytics", icon: TrendingUp },
-  { id: "keys", label: "API Keys", icon: Key },
-  { id: "webhooks", label: "Webhooks", icon: Webhook },
-  { id: "blocklist", label: "Blocklist", icon: ShieldBan },
-  { id: "audit", label: "Audit Log", icon: ListFilter },
-  { id: "billing", label: "Billing", icon: CreditCard },
-  { id: "settings", label: "Settings", icon: Globe },
-];
+import BulkTab from "./dashboard/tabs/BulkTab";
+import { TeamTab } from "./dashboard/tabs/TeamTab";
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -41,9 +27,18 @@ export default function DashboardPage() {
   const data = rawData as DashboardDataWithPlanConfig | undefined;
   const regenKeyMutation = useRegenerateApiKey();
   const [copied, setCopied] = useState(false);
-  const [activeTab, setActiveTab] = useState<Tab>("overview");
+  const [activeTab, setActiveTab] = useState<DashboardTab>(() => {
+    const hash = window.location.hash.replace("#", "") as DashboardTab;
+    const valid: DashboardTab[] = ["overview","analytics","keys","webhooks","blocklist","team","bulk","audit","billing","settings"];
+    return valid.includes(hash) ? hash : "overview";
+  });
 
   if (!user) return null;
+
+  const handleTabChange = (tab: DashboardTab) => {
+    setActiveTab(tab);
+    window.history.replaceState(null, "", `#${tab}`);
+  };
 
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -63,85 +58,100 @@ export default function DashboardPage() {
     ? Math.min(100, (data.user.requestCount / data.user.requestLimit) * 100)
     : 0;
 
+  const TAB_TITLES: Record<DashboardTab, string> = {
+    overview: "Overview",
+    analytics: "Analytics",
+    keys: "API Keys",
+    webhooks: "Webhooks",
+    blocklist: "Blocklist",
+    team: "Team",
+    bulk: "Bulk Validation",
+    audit: "Audit Log",
+    billing: "Billing",
+    settings: "Settings",
+  };
+
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
-      <PageTransition>
-        <div className="max-w-6xl mx-auto px-6 w-full">
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-6 mt-4">
-            <div>
-              <h1 className="font-heading text-2xl sm:text-3xl font-bold text-foreground">Dashboard</h1>
-              <p className="text-muted-foreground mt-0.5 text-sm">Welcome back, {user.name}</p>
-            </div>
-            <Link
-              href="/upgrade"
-              className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted self-start sm:self-auto"
-            >
-              Upgrade Plan <ArrowUpRight className="h-4 w-4" />
-            </Link>
+      <DashboardSidebar
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+        usagePct={usagePct}
+        requestCount={data?.user.requestCount ?? 0}
+        requestLimit={data?.user.requestLimit ?? 0}
+        plan={data?.user.plan ?? "FREE"}
+      />
+
+      {/* Main content area — offset by sidebar width */}
+      <main className="lg:pl-[260px] min-h-screen transition-all duration-200">
+        <div className="max-w-5xl mx-auto px-6 py-8 pt-20 lg:pt-8">
+          {/* Page header */}
+          <div className="mb-6">
+            <h1 className="font-heading text-2xl font-bold text-foreground">
+              {TAB_TITLES[activeTab]}
+            </h1>
+            <p className="text-muted-foreground text-sm mt-0.5">
+              {activeTab === "overview" && `Welcome back, ${user.name}`}
+              {activeTab === "analytics" && "Monitor your API usage and validation insights"}
+              {activeTab === "keys" && "Manage your API keys for authentication"}
+              {activeTab === "webhooks" && "Configure webhook integrations"}
+              {activeTab === "blocklist" && "Manage your custom domain blocklist"}
+              {activeTab === "team" && "Manage team members and seats"}
+              {activeTab === "bulk" && "Validate emails in bulk with CSV upload"}
+              {activeTab === "audit" && "Review your API request history"}
+              {activeTab === "billing" && "View billing history and invoices"}
+              {activeTab === "settings" && "Configure your account preferences"}
+            </p>
           </div>
 
-          <div className="mb-6 overflow-x-auto no-scrollbar">
-            <div className="flex gap-1 bg-muted/30 rounded-xl p-1 min-w-max">
-              {TABS.map(({ id, label, icon: Icon }) => (
-                <button
-                  key={id}
-                  onClick={() => setActiveTab(id)}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
-                    activeTab === id
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <Icon className="h-3.5 w-3.5 flex-shrink-0" />
-                  <span>{label}</span>
-                </button>
-              ))}
-              <Link href="/support" className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap text-muted-foreground hover:text-foreground">
-                <MessageSquare className="h-3.5 w-3.5 flex-shrink-0" />
-                <span>Support</span>
-              </Link>
-            </div>
-          </div>
-
+          {/* Tab content with crossfade */}
           {isLoading ? (
-            <div className="flex justify-center py-20">
-              <Activity className="h-8 w-8 text-primary animate-pulse" />
-            </div>
+            <DashboardSkeleton />
           ) : data ? (
-            <>
-              {activeTab === "overview" && (
-                <OverviewTab
-                  data={data}
-                  usagePct={usagePct}
-                  copied={copied}
-                  onCopy={handleCopy}
-                  onRegenerate={handleRegenerate}
-                  regenPending={regenKeyMutation.isPending}
-                />
-              )}
-              {activeTab === "analytics" && <AnalyticsTab data={data} usagePct={usagePct} />}
-              {activeTab === "keys" && (
-                <ApiKeysTab
-                  plan={data.user.plan}
-                  apiKey={data.user.apiKey}
-                  copied={copied}
-                  onCopy={handleCopy}
-                  onRegenerate={handleRegenerate}
-                  regenPending={regenKeyMutation.isPending}
-                />
-              )}
-              {activeTab === "webhooks" && <WebhooksTab plan={data.user.plan} />}
-              {activeTab === "blocklist" && <BlocklistTab plan={data.user.plan} />}
-              {activeTab === "audit" && <AuditLogTab />}
-              {activeTab === "billing" && <BillingTab />}
-              {activeTab === "settings" && (
-                <SettingsTab planConfig={data.planConfig} plan={data.user.plan} />
-              )}
-            </>
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
+              >
+                {activeTab === "overview" && (
+                  <OverviewTab
+                    data={data}
+                    usagePct={usagePct}
+                    copied={copied}
+                    onCopy={handleCopy}
+                    onRegenerate={handleRegenerate}
+                    regenPending={regenKeyMutation.isPending}
+                  />
+                )}
+                {activeTab === "analytics" && <AnalyticsTab data={data} usagePct={usagePct} />}
+                {activeTab === "keys" && (
+                  <ApiKeysTab
+                    plan={data.user.plan}
+                    planConfig={data.planConfig}
+                    apiKey={data.user.apiKey}
+                    copied={copied}
+                    onCopy={handleCopy}
+                    onRegenerate={handleRegenerate}
+                    regenPending={regenKeyMutation.isPending}
+                  />
+                )}
+                {activeTab === "webhooks" && <WebhooksTab plan={data.user.plan} planConfig={data.planConfig} />}
+                {activeTab === "blocklist" && <BlocklistTab plan={data.user.plan} planConfig={data.planConfig} />}
+                {activeTab === "team" && <TeamTab />}
+                {activeTab === "bulk" && <BulkTab planConfig={data.planConfig} />}
+                {activeTab === "audit" && <AuditLogTab />}
+                {activeTab === "billing" && <BillingTab />}
+                {activeTab === "settings" && (
+                  <SettingsTab planConfig={data.planConfig} plan={data.user.plan} apiKey={data.user.apiKey} />
+                )}
+              </motion.div>
+            </AnimatePresence>
           ) : null}
         </div>
-      </PageTransition>
+      </main>
     </div>
   );
 }

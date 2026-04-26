@@ -56,8 +56,7 @@ router.get("/plans", async (_req, res) => {
       price: planConfigsTable.price,
       requestLimit: planConfigsTable.requestLimit,
       websiteLimit: planConfigsTable.websiteLimit,
-      mxDetectionEnabled: planConfigsTable.mxDetectionEnabled,
-      inboxCheckEnabled: planConfigsTable.inboxCheckEnabled,
+      dataLimit: planConfigsTable.dataLimit,
     })
     .from(planConfigsTable)
     .orderBy(planConfigsTable.id);

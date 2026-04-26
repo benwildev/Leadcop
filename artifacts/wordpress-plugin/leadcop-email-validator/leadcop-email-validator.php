@@ -2,8 +2,8 @@
 /**
  * Plugin Name:       LeadCop Email Validator
  * Plugin URI:        https://leadcop.io
- * Description:       Validate email addresses on WordPress forms using the LeadCop API. Blocks disposable, role-based, and undeliverable addresses. Includes a newsletter subscribe shortcode.
- * Version:           1.0.0
+ * Description:       Validate email addresses on WordPress forms using the LeadCop API. Blocks disposable, role-based, forwarding, free-provider, and undeliverable addresses. Includes a newsletter subscribe shortcode.
+ * Version:           1.1.0
  * Requires at least: 5.8
  * Requires PHP:      7.4
  * Author:            LeadCop
@@ -15,7 +15,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'LEADCOP_VERSION', '1.0.0' );
+define( 'LEADCOP_VERSION', '1.1.0' );
 define( 'LEADCOP_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'LEADCOP_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'LEADCOP_OPTIONS_KEY', 'leadcop_settings' );
@@ -74,22 +74,53 @@ function leadcop_validate_email( string $email ) {
 /**
  * Decide whether a validation result should be blocked given the plugin settings.
  *
+ * The API returns these boolean fields which map to WordPress plugin toggles:
+ *   isDisposable   → block_disposable   (Disposable Email Detection)
+ *   isRoleAccount  → block_role         (Role Account Detection)
+ *   mxValid        → block_invalid_mx   (MX Records Validation — blocks when false)
+ *   isForwarding   → block_forwarding   (Email Forwarding Detection)
+ *   isFreeEmail    → block_free_email   (Public Email Detection)
+ *   isInvalidTld   → block_invalid_tld  (Comprehensive TLD Validation)
+ *   smtpValid      → block_smtp_invalid (SMTP deliverability check)
+ *
+ * Note: didYouMean (Smart Email Suggestions) is informational — it cannot block by itself.
+ *
  * @param  array $result  Response from leadcop_validate_email().
  * @return bool           True if the email should be blocked.
  */
 function leadcop_should_block( array $result ): bool {
-	$flags = $result['result'] ?? [];
+	// 1. Disposable Email Detection
+	if ( leadcop_get_option( 'block_disposable', '1' ) === '1' && ! empty( $result['isDisposable'] ) ) {
+		return true;
+	}
 
-	if ( leadcop_get_option( 'block_disposable', '1' ) === '1' && ! empty( $flags['isDisposable'] ) ) {
+	// 2. Role Account Detection (e.g. admin@, info@, noreply@)
+	if ( leadcop_get_option( 'block_role', '1' ) === '1' && ! empty( $result['isRoleAccount'] ) ) {
 		return true;
 	}
-	if ( leadcop_get_option( 'block_role', '1' ) === '1' && ! empty( $flags['isRoleAccount'] ) ) {
+
+	// 3. MX Records Validation — block if domain has no mail server
+	if ( leadcop_get_option( 'block_invalid_mx', '1' ) === '1' && isset( $result['mxValid'] ) && ! $result['mxValid'] ) {
 		return true;
 	}
-	if ( leadcop_get_option( 'block_invalid_mx', '1' ) === '1' && isset( $flags['hasMx'] ) && ! $flags['hasMx'] ) {
+
+	// 4. Email Forwarding Detection (relay addresses like iCloud private relay, SimpleLogin, etc.)
+	if ( leadcop_get_option( 'block_forwarding', '0' ) === '1' && ! empty( $result['isForwarding'] ) ) {
 		return true;
 	}
-	if ( leadcop_get_option( 'block_smtp_invalid', '0' ) === '1' && isset( $flags['smtpValid'] ) && ! $flags['smtpValid'] ) {
+
+	// 5. Public Email Detection (Gmail, Yahoo, Hotmail, etc.)
+	if ( leadcop_get_option( 'block_free_email', '0' ) === '1' && ! empty( $result['isFreeEmail'] ) ) {
+		return true;
+	}
+
+	// 6. Comprehensive TLD Validation — block invalid/fake TLDs
+	if ( leadcop_get_option( 'block_invalid_tld', '1' ) === '1' && ! empty( $result['isInvalidTld'] ) ) {
+		return true;
+	}
+
+	// 7. SMTP Deliverability Check (slower — uses extra API credits)
+	if ( leadcop_get_option( 'block_smtp_invalid', '0' ) === '1' && isset( $result['smtpValid'] ) && ! $result['smtpValid'] ) {
 		return true;
 	}
 
@@ -108,7 +139,7 @@ function leadcop_error_message(): string {
 add_filter( 'registration_errors', 'leadcop_check_registration_email', 10, 3 );
 
 function leadcop_check_registration_email( WP_Error $errors, string $sanitized_user_login, string $user_email ): WP_Error {
-	if ( ! leadcop_get_option( 'validate_registration', '1' ) === '1' ) {
+	if ( leadcop_get_option( 'validate_registration', '1' ) !== '1' ) {
 		return $errors;
 	}
 	if ( $errors->get_error_code() || empty( $user_email ) ) {
@@ -451,15 +482,28 @@ function leadcop_inject_frontend_script(): void {
 		return;
 	}
 
+	// Build data-* attributes for features that can be disabled via the script
 	$script_url = $base_url . '/temp-email-validator.js';
 	$error_msg  = esc_attr( leadcop_error_message() );
 
+	// Feature flags passed to the frontend script
+	$flags = [];
+	if ( leadcop_get_option( 'block_disposable', '1' ) !== '1' )  $flags[] = 'data-check-disposable="false"';
+	if ( leadcop_get_option( 'block_role', '1' ) !== '1' )        $flags[] = 'data-check-role="false"';
+	if ( leadcop_get_option( 'block_invalid_mx', '1' ) !== '1' )  $flags[] = 'data-check-mx="false"';
+	if ( leadcop_get_option( 'block_forwarding', '0' ) === '1' )  $flags[] = 'data-check-forwarding="true"';
+	if ( leadcop_get_option( 'block_free_email', '0' ) === '1' )  $flags[] = 'data-check-free="true"';
+	if ( leadcop_get_option( 'block_invalid_tld', '1' ) !== '1' ) $flags[] = 'data-check-tld="false"';
+
+	$flags_str = ! empty( $flags ) ? ' ' . implode( ' ', $flags ) : '';
+
 	printf(
-		'<script src="%s" data-api-key="%s" data-api-url="%s" data-error-message="%s"></script>' . "\n",
+		'<script src="%s" data-api-key="%s" data-api-url="%s" data-error-message="%s"%s></script>' . "\n",
 		esc_url( $script_url ),
 		esc_attr( $api_key ),
 		esc_url( $base_url ),
-		$error_msg
+		$error_msg,
+		$flags_str
 	);
 }
 
@@ -494,8 +538,7 @@ function leadcop_admin_notices(): void {
 		return;
 	}
 
-	// Test API connection with the Origin and Referer headers to simulate frontend scripts.
-	// We use an invalid email address ('ping') so it fails validation before deducting a credit.
+	// Test API connection
 	$test_path = '/leadcop-plugin-setup-test';
 	$response = wp_remote_post(
 		$base_url . '/api/check-email',
@@ -523,7 +566,6 @@ function leadcop_admin_notices(): void {
 		echo '<div class="notice notice-error"><p>' . esc_html__( 'LeadCop API Error: Invalid API key.', 'leadcop' ) . '</p></div>';
 	} elseif ( $code === 403 ) {
 		$error_msg = $body['error'] ?? 'Access Denied';
-		// If the error mentions our specific test path, it means Origin succeeded but Page Restriction is active!
 		if ( strpos( $error_msg, $test_path ) !== false ) {
 			if ( isset( $_GET['settings-updated'] ) && $_GET['settings-updated'] ) {
 				echo '<div class="notice notice-warning is-dismissible"><p><strong>' . esc_html__( 'LeadCop Connected, but Page Restrictions are ON:', 'leadcop' ) . '</strong> ' . esc_html__( 'Your API key and Origin are correct, but you have "Protected Pages" enabled in your dashboard. Make sure you add the actual URLs of your forms (e.g. /contact/) to your dashboard, otherwise frontend validation will be blocked!', 'leadcop' ) . '</p></div>';
@@ -532,7 +574,6 @@ function leadcop_admin_notices(): void {
 			echo '<div class="notice notice-error"><p><strong>' . esc_html__( 'LeadCop Plugin Setup Incomplete:', 'leadcop' ) . '</strong> ' . esc_html( $error_msg ) . '</p></div>';
 		}
 	} elseif ( $code === 400 || $code === 200 ) {
-		// 400 means origin, referer and API key checks passed natively, but the 'ping' email failed validation as planned.
 		if ( isset( $_GET['settings-updated'] ) && $_GET['settings-updated'] ) {
 			echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'LeadCop API connection successful! Your website is fully protected.', 'leadcop' ) . '</p></div>';
 		}
@@ -549,13 +590,16 @@ function leadcop_register_settings(): void {
 	add_settings_field( 'api_key',      __( 'API Key', 'leadcop' ),         'leadcop_field_api_key',      'leadcop-settings', 'leadcop_api' );
 	add_settings_field( 'api_base_url', __( 'API Base URL', 'leadcop' ),    'leadcop_field_api_base_url', 'leadcop-settings', 'leadcop_api' );
 
-	// Validation section
-	add_settings_section( 'leadcop_validation', __( 'Validation Rules', 'leadcop' ), '__return_false', 'leadcop-settings' );
-	add_settings_field( 'block_disposable',  __( 'Block disposable emails', 'leadcop' ),        'leadcop_field_block_disposable',  'leadcop-settings', 'leadcop_validation' );
-	add_settings_field( 'block_role',        __( 'Block role-based emails', 'leadcop' ),         'leadcop_field_block_role',        'leadcop-settings', 'leadcop_validation' );
-	add_settings_field( 'block_invalid_mx',  __( 'Block emails with no MX record', 'leadcop' ), 'leadcop_field_block_invalid_mx',  'leadcop-settings', 'leadcop_validation' );
-	add_settings_field( 'block_smtp_invalid',__( 'Block undeliverable mailboxes (SMTP)', 'leadcop' ), 'leadcop_field_block_smtp', 'leadcop-settings', 'leadcop_validation' );
-	add_settings_field( 'error_message',     __( 'Error message', 'leadcop' ),                  'leadcop_field_error_message',     'leadcop-settings', 'leadcop_validation' );
+	// Validation rules section — one toggle per detection feature
+	add_settings_section( 'leadcop_validation', __( 'Detection Features', 'leadcop' ), 'leadcop_section_validation_desc', 'leadcop-settings' );
+	add_settings_field( 'block_disposable',  __( '🚫 Disposable Email Detection', 'leadcop' ),      'leadcop_field_block_disposable',  'leadcop-settings', 'leadcop_validation' );
+	add_settings_field( 'block_role',        __( '🔖 Role Account Detection', 'leadcop' ),           'leadcop_field_block_role',        'leadcop-settings', 'leadcop_validation' );
+	add_settings_field( 'block_invalid_mx',  __( '📡 MX Records Validation', 'leadcop' ),           'leadcop_field_block_invalid_mx',  'leadcop-settings', 'leadcop_validation' );
+	add_settings_field( 'block_invalid_tld', __( '🌐 Comprehensive TLD Validation', 'leadcop' ),    'leadcop_field_block_invalid_tld', 'leadcop-settings', 'leadcop_validation' );
+	add_settings_field( 'block_forwarding',  __( '🔀 Email Forwarding Detection', 'leadcop' ),      'leadcop_field_block_forwarding',  'leadcop-settings', 'leadcop_validation' );
+	add_settings_field( 'block_free_email',  __( '📧 Public Email Detection', 'leadcop' ),          'leadcop_field_block_free',        'leadcop-settings', 'leadcop_validation' );
+	add_settings_field( 'block_smtp_invalid',__( '⚡ SMTP Deliverability Check', 'leadcop' ),       'leadcop_field_block_smtp',        'leadcop-settings', 'leadcop_validation' );
+	add_settings_field( 'error_message',     __( 'Custom Error Message', 'leadcop' ),               'leadcop_field_error_message',     'leadcop-settings', 'leadcop_validation' );
 
 	// Form integrations section
 	add_settings_section( 'leadcop_forms', __( 'Form Integrations', 'leadcop' ), '__return_false', 'leadcop-settings' );
@@ -563,6 +607,10 @@ function leadcop_register_settings(): void {
 	add_settings_field( 'validate_comments',     __( 'WordPress comments', 'leadcop' ),        'leadcop_field_validate_comments',     'leadcop-settings', 'leadcop_forms' );
 	add_settings_field( 'validate_woocommerce',  __( 'WooCommerce checkout & registration', 'leadcop' ), 'leadcop_field_validate_woo', 'leadcop-settings', 'leadcop_forms' );
 	add_settings_field( 'validate_cf7',          __( 'Contact Form 7 email fields', 'leadcop' ), 'leadcop_field_validate_cf7',        'leadcop-settings', 'leadcop_forms' );
+}
+
+function leadcop_section_validation_desc(): void {
+	echo '<p>' . esc_html__( 'Enable or disable each detection feature. Disabled features will not block submissions even if the API detects them. Smart Email Suggestions (typo hints) are always shown when available and never block.', 'leadcop' ) . '</p>';
 }
 
 function leadcop_sanitize_settings( $input ): array {
@@ -573,6 +621,9 @@ function leadcop_sanitize_settings( $input ): array {
 	$clean['block_disposable']     = ! empty( $input['block_disposable'] ) ? '1' : '0';
 	$clean['block_role']           = ! empty( $input['block_role'] ) ? '1' : '0';
 	$clean['block_invalid_mx']     = ! empty( $input['block_invalid_mx'] ) ? '1' : '0';
+	$clean['block_invalid_tld']    = ! empty( $input['block_invalid_tld'] ) ? '1' : '0';
+	$clean['block_forwarding']     = ! empty( $input['block_forwarding'] ) ? '1' : '0';
+	$clean['block_free_email']     = ! empty( $input['block_free_email'] ) ? '1' : '0';
 	$clean['block_smtp_invalid']   = ! empty( $input['block_smtp_invalid'] ) ? '1' : '0';
 	$clean['validate_registration']= ! empty( $input['validate_registration'] ) ? '1' : '0';
 	$clean['validate_comments']    = ! empty( $input['validate_comments'] ) ? '1' : '0';
@@ -605,16 +656,25 @@ function leadcop_field_api_base_url(): void {
 }
 
 function leadcop_field_block_disposable(): void {
-	leadcop_checkbox_field( 'block_disposable', '1', __( 'Reject single-use / temporary email addresses', 'leadcop' ) );
+	leadcop_checkbox_field( 'block_disposable', '1', __( 'Block single-use / temporary email addresses (e.g. mailinator.com, guerrillamail.com)', 'leadcop' ) );
 }
 function leadcop_field_block_role(): void {
-	leadcop_checkbox_field( 'block_role', '1', __( 'Reject role addresses (e.g. info@, admin@, noreply@)', 'leadcop' ) );
+	leadcop_checkbox_field( 'block_role', '1', __( 'Block role addresses (e.g. info@, admin@, noreply@, support@)', 'leadcop' ) );
 }
 function leadcop_field_block_invalid_mx(): void {
-	leadcop_checkbox_field( 'block_invalid_mx', '1', __( 'Reject domains with no valid mail server (MX record)', 'leadcop' ) );
+	leadcop_checkbox_field( 'block_invalid_mx', '1', __( 'Block domains with no valid mail server (no MX record) — cannot receive email', 'leadcop' ) );
+}
+function leadcop_field_block_invalid_tld(): void {
+	leadcop_checkbox_field( 'block_invalid_tld', '1', __( 'Block emails with invalid or non-existent TLDs (e.g. .xyz123, .fakelocal)', 'leadcop' ) );
+}
+function leadcop_field_block_forwarding(): void {
+	leadcop_checkbox_field( 'block_forwarding', '0', __( 'Block email forwarding/relay addresses (e.g. iCloud Private Relay, SimpleLogin, AnonAddy) — off by default', 'leadcop' ) );
+}
+function leadcop_field_block_free(): void {
+	leadcop_checkbox_field( 'block_free_email', '0', __( 'Block public/free email providers (e.g. gmail.com, yahoo.com, hotmail.com) — off by default; use only if you require business emails', 'leadcop' ) );
 }
 function leadcop_field_block_smtp(): void {
-	leadcop_checkbox_field( 'block_smtp_invalid', '0', __( 'Reject mailboxes confirmed undeliverable via SMTP (slower; uses extra API credits)', 'leadcop' ) );
+	leadcop_checkbox_field( 'block_smtp_invalid', '0', __( 'Block mailboxes confirmed undeliverable via SMTP handshake (slower; uses extra API credits) — off by default', 'leadcop' ) );
 }
 
 function leadcop_checkbox_field( string $key, string $default, string $label ): void {
@@ -679,6 +739,35 @@ function leadcop_settings_page(): void {
 			<li><code>success_msg="You're in!"</code></li>
 		</ul>
 		<p><?php esc_html_e( 'You can also add the "LeadCop Newsletter Subscribe" widget to any widget area.', 'leadcop' ); ?></p>
+
+		<hr />
+		<h2><?php esc_html_e( 'API & Script Feature Flags', 'leadcop' ); ?></h2>
+		<p><?php esc_html_e( 'You can also control features per-request in your own code. Pass these query parameters to the API or data attributes to the JS script:', 'leadcop' ); ?></p>
+		<h3><?php esc_html_e( 'REST API – POST /api/check-email', 'leadcop' ); ?></h3>
+		<p><?php esc_html_e( 'All features are returned in every API response. Decide which ones to act on in your code, based on the returned booleans:', 'leadcop' ); ?></p>
+		<table class="widefat striped" style="max-width:700px">
+			<thead><tr><th><?php esc_html_e( 'Field', 'leadcop' ); ?></th><th><?php esc_html_e( 'Feature', 'leadcop' ); ?></th><th><?php esc_html_e( 'Type', 'leadcop' ); ?></th></tr></thead>
+			<tbody>
+				<tr><td><code>isDisposable</code></td><td><?php esc_html_e( 'Disposable Email Detection', 'leadcop' ); ?></td><td>boolean</td></tr>
+				<tr><td><code>isRoleAccount</code></td><td><?php esc_html_e( 'Role Account Detection', 'leadcop' ); ?></td><td>boolean</td></tr>
+				<tr><td><code>mxValid</code></td><td><?php esc_html_e( 'MX Records Validation', 'leadcop' ); ?></td><td>boolean</td></tr>
+				<tr><td><code>isInvalidTld</code></td><td><?php esc_html_e( 'TLD Validation', 'leadcop' ); ?></td><td>boolean</td></tr>
+				<tr><td><code>isForwarding</code></td><td><?php esc_html_e( 'Email Forwarding Detection', 'leadcop' ); ?></td><td>boolean</td></tr>
+				<tr><td><code>isFreeEmail</code></td><td><?php esc_html_e( 'Public Email Detection', 'leadcop' ); ?></td><td>boolean</td></tr>
+				<tr><td><code>didYouMean</code></td><td><?php esc_html_e( 'Smart Email Suggestions', 'leadcop' ); ?></td><td>string|null</td></tr>
+			</tbody>
+		</table>
+		<h3><?php esc_html_e( 'JS Script – Inline data attributes', 'leadcop' ); ?></h3>
+		<pre style="background:#f1f1f1;padding:12px;border-radius:4px">&lt;script
+  src="https://leadcop.io/temp-email-validator.js"
+  data-api-key="YOUR_KEY"
+  data-check-disposable="true"
+  data-check-role="true"
+  data-check-mx="true"
+  data-check-tld="true"
+  data-check-forwarding="false"
+  data-check-free="false"
+&gt;&lt;/script&gt;</pre>
 	</div>
 	<?php
 }
@@ -697,6 +786,9 @@ function leadcop_activate(): void {
 		'block_disposable'      => '1',
 		'block_role'            => '1',
 		'block_invalid_mx'      => '1',
+		'block_invalid_tld'     => '1',
+		'block_forwarding'      => '0',
+		'block_free_email'      => '0',
 		'block_smtp_invalid'    => '0',
 		'validate_registration' => '1',
 		'validate_comments'     => '0',

@@ -1,240 +1,439 @@
-import { useState, useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
-import { Link } from 'wouter';
+import { useEffect, useRef, useState } from "react";
+import { Link } from "wouter";
 import {
-  Zap, Check, X, ArrowRight, Copy, CheckCircle2,
-  Mail, Globe, AtSign, FileWarning, Sparkles, UserX,
-  ChevronDown, Star, Lock, Shield, AlertCircle, RefreshCw, Send,
-} from 'lucide-react';
+  AlertCircle,
+  ArrowRight,
+  Check,
+  CheckCircle2,
+  ChevronDown,
+  Copy,
+  Globe,
+  Mail,
+  Download,
+  MoveRight,
+  RefreshCw,
+  Server,
+  Shield,
+  Sparkles,
+  Star,
+  Trash2,
+  Users,
+  UserX,
+  X,
+  Zap,
+} from "lucide-react";
 import { PricingSection } from "../components/sections/PricingSection";
-import { Logo } from './Logo';
+import { Logo } from "./Logo";
+import { useAuth } from "@/hooks/use-auth";
 
-type ValStatus = 'idle' | 'typing' | 'checking' | 'blocked' | 'role' | 'typo' | 'invalid' | 'valid' | 'tld-error' | 'free';
-type ValResult = { status: ValStatus; message?: string; suggestion?: string; reason?: string };
+type ValStatus =
+  | "idle"
+  | "typing"
+  | "checking"
+  | "blocked"
+  | "role"
+  | "typo"
+  | "invalid"
+  | "valid"
+  | "tld-error"
+  | "free";
 
-// ─── Live Demo Validation (API Powered) ──────────────────────────────────────
+type ValResult = {
+  status: ValStatus;
+  message?: string;
+  suggestion?: string;
+  reason?: string;
+};
+
 async function checkEmailApi(email: string): Promise<ValResult> {
-  const t = email.trim();
-  if (!t) return { status: 'idle' };
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(t)) return { status: 'invalid', message: "This doesn't look like a valid email address." };
+  const trimmed = email.trim();
+
+  if (!trimmed) return { status: "idle" };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(trimmed)) {
+    return {
+      status: "invalid",
+      message: "This does not look like a valid email address.",
+    };
+  }
 
   try {
-    const response = await fetch('/api/check-email/demo', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: t }),
+    const response = await fetch("/api/check-email/demo", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: trimmed }),
     });
 
     if (!response.ok) {
-      const err = await response.json();
-      return { status: 'invalid', message: err.error || "Invalid email address." };
+      const error = await response.json();
+      return {
+        status: "invalid",
+        message: error.error || "Invalid email address.",
+      };
     }
 
     const data = await response.json();
 
-    if (data.isInvalidTld) return { status: 'tld-error', message: 'Invalid domain', reason: 'Unsupported TLD' };
-    if (data.isForwarding) return { status: 'role', message: 'Email relay services are not recommended for signups.', reason: 'Forwarding / Relay detected' };
-    if (data.isDisposable) return { status: 'blocked', message: 'Temporary email addresses are not allowed.', reason: 'Disposable provider detected' };
-    if (data.didYouMean) return { status: 'typo', message: `Did you mean ${data.didYouMean}?`, suggestion: data.didYouMean };
-    if (data.isGibberish) return { status: 'tld-error', message: 'This TLD or domain pattern is suspicious.', reason: 'TLD/Pattern check failed' };
-    if (data.isFree) return { status: 'free', message: 'Personal email detected.' };
+    if (data.didYouMean) {
+      const [localPart] = trimmed.split("@");
+      const fullSuggestion = `${localPart}@${data.didYouMean}`;
+      return {
+        status: "typo",
+        message: `Did you mean ${fullSuggestion}?`,
+        suggestion: fullSuggestion,
+      };
+    }
 
-    return { status: 'valid', message: 'Looks good! This is a real email address.' };
+    if (data.isInvalidTld) {
+      return {
+        status: "tld-error",
+        message: "Invalid domain extension.",
+        reason: "Unsupported TLD",
+      };
+    }
+
+    if (data.isForwarding) {
+      return {
+        status: "role",
+        message: "Relay emails are not ideal for signups.",
+        reason: "Forwarding or relay detected",
+      };
+    }
+
+    if (data.isDisposable || data.disposable) {
+      return {
+        status: "blocked",
+        message: "Temporary email addresses are blocked.",
+        reason: "Disposable provider detected",
+      };
+    }
+
+    if (data.isRoleAccount || data.roleAccount) {
+      return {
+        status: "role",
+        message: "Role-based inboxes often convert poorly.",
+        reason: "Role account detected",
+      };
+    }
+
+    if (data.isGibberish) {
+      return {
+        status: "tld-error",
+        message: "This email pattern looks suspicious.",
+        reason: "Pattern check failed",
+      };
+    }
+
+    if (data.isFree) {
+      return {
+        status: "free",
+        message: "Personal email detected.",
+      };
+    }
+
+    return {
+      status: "valid",
+      message: "Looks good. This appears to be a real inbox.",
+    };
   } catch (error) {
-    console.error("API Error:", error);
-    return { status: 'invalid', message: "Could not connect to verification server." };
+    console.error("Demo validation failed", error);
+    return {
+      status: "invalid",
+      message: "Could not connect to the verification server.",
+    };
   }
 }
 
-// ─── Newsletter Form Component ──────────────────────────────────────────────
 function NewsletterForm() {
-  const [email, setEmail] = useState('');
-  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-  const [message, setMessage] = useState('');
+  const [email, setEmail] = useState("");
+  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error" | "validating">("idle");
+  const [message, setMessage] = useState("");
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email || !email.includes('@')) return;
+  const validateEmail = async (val: string) => {
+    if (!val || !val.includes("@")) {
+      setStatus("idle");
+      return;
+    }
     
-    setStatus('loading');
+    setStatus("validating");
     try {
-      // First, validate using LeadCop logic
+      const result = await checkEmailApi(val);
+      if (result.status !== "valid" && result.status !== "free" && result.status !== "idle") {
+        setStatus("error");
+        setMessage(result.message || "Invalid email address.");
+      } else {
+        setStatus("idle");
+        setMessage("");
+      }
+    } catch {
+      // Silently fail real-time validation
+      setStatus("idle");
+    }
+  };
+
+  const handleEmailChange = (val: string) => {
+    setEmail(val);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    
+    if (status === "error") setStatus("idle");
+
+    timerRef.current = setTimeout(() => {
+      validateEmail(val);
+    }, 600);
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!email || !email.includes("@")) return;
+
+    setStatus("loading");
+
+    try {
       const validation = await checkEmailApi(email);
-      console.log("Newsletter Validation Result:", validation);
-      
-      if (validation.status !== 'valid' && validation.status !== 'idle') {
-        setStatus('error');
+
+      if (validation.status !== "valid" && validation.status !== "free" && validation.status !== "idle") {
+        setStatus("error");
         setMessage(validation.message || "Invalid email address.");
         return;
       }
 
-      console.log("Newsletter verification passed. Subscribing...");
-      const res = await fetch('/api/newsletter/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/newsletter/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
-      const data = await res.json();
-      console.log("Newsletter Subscription API Response:", data);
-      
-      if (res.ok) {
-        setStatus('success');
-        setMessage(data.message || "You're on the list!");
-        setEmail('');
-      } else {
-        setStatus('error');
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setStatus("error");
         setMessage(data.error || "Something went wrong.");
+        return;
       }
-    } catch (err) {
-      setStatus('error');
+
+      setStatus("success");
+      setMessage(data.message || "You're on the list.");
+      setEmail("");
+    } catch {
+      setStatus("error");
       setMessage("Could not connect to server.");
     }
   };
 
-  if (status === 'success') {
+  if (status === "success") {
     return (
-      <motion.div 
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col items-center gap-2 py-4 text-gray-900"
-      >
-        <div className="w-10 h-10 rounded-full bg-green-50 text-green-600 flex items-center justify-center">
-          <Check className="w-5 h-5" />
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center">
+        <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+          <Check className="h-5 w-5" />
         </div>
-        <p className="font-semibold text-base">{message}</p>
-        <button onClick={() => setStatus('idle')} className="text-xs text-gray-400 hover:text-gray-600 transition-colors">Subscribe another email</button>
-      </motion.div>
+        <p className="text-sm font-medium text-slate-900">{message}</p>
+        <button
+          onClick={() => setStatus("idle")}
+          className="mt-3 text-xs text-slate-500 transition-colors hover:text-slate-900"
+        >
+          Subscribe another email
+        </button>
+      </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-2 max-w-md mx-auto relative group">
-      <div className="flex-1 relative">
-        <input 
-          type="email" 
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="Email address"
-          required
-          className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-50 transition-all"
-        />
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row relative">
+        <div className="relative flex-1">
+          <input
+            type="email"
+            value={email}
+            onChange={(event) => handleEmailChange(event.target.value)}
+            placeholder="Work email"
+            required
+            className={`h-12 w-full rounded-xl border bg-white px-4 text-sm text-slate-900 outline-none transition ${
+              status === "error" 
+                ? "border-red-500 focus:border-red-600" 
+                : "border-slate-200 focus:border-slate-900"
+            }`}
+          />
+          {status === "validating" && (
+            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+              <RefreshCw className="h-4 w-4 animate-spin text-slate-400" />
+            </div>
+          )}
+        </div>
+        <button
+          type="submit"
+          disabled={status === "loading" || status === "error"}
+          className="inline-flex h-12 items-center justify-center rounded-xl bg-slate-950 px-8 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {status === "loading" ? <RefreshCw className="h-4 w-4 animate-spin" /> : "Join"}
+        </button>
       </div>
-      <button 
-        type="submit" 
-        disabled={status === 'loading'}
-        className="bg-gray-900 text-white px-6 py-3.5 rounded-xl text-sm font-semibold hover:bg-gray-800 transition-all active:scale-[0.98] disabled:opacity-70 disabled:pointer-events-none flex items-center justify-center gap-2 min-w-[120px]"
-      >
-        {status === 'loading' ? (
-          <RefreshCw className="w-4 h-4 animate-spin text-white/50" />
+      <div className="flex items-center justify-between min-h-[1.5rem]">
+        {status === "error" ? (
+          <p className="flex items-center gap-1.5 text-[13px] font-medium text-red-600 animate-in fade-in slide-in-from-top-1">
+            <X className="h-3.5 w-3.5" />
+            {message}
+          </p>
         ) : (
-          'Join'
+          <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-white/40">
+            <Shield className="h-3 w-3" />
+            LeadCop Protected
+          </p>
         )}
-      </button>
-      {status === 'error' && (
-        <p className="absolute -bottom-6 left-0 right-0 text-[10px] text-red-500 font-medium">{message}</p>
-      )}
+      </div>
     </form>
   );
 }
 
-// ─── Live Demo Widget ────────────────────────────────────────────────────────
 function LiveDemoWidget() {
-  const [email, setEmail] = useState('');
-  const [result, setResult] = useState<ValResult>({ status: 'idle' });
+  const [email, setEmail] = useState("");
+  const [result, setResult] = useState<ValResult>({ status: "idle" });
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const examples = [
-    { label: 'Apple Relay', value: 'user@privaterelay.appleid.com' },
-    { label: 'Role address', value: 'admin@company.com' },
-    { label: 'Invalid domain', value: 'user@imcgrupo.comfd' },
-    { label: 'Real email', value: 'sarah@acmecorp.com' },
+    { label: "Disposable", value: "user@mailinator.com" },
+    { label: "Role", value: "admin@corporate.com" },
+    { label: "Typo", value: "john@gmial.com" },
+    { label: "Relay", value: "user@privaterelay.appleid.com" },
+    { label: "Real", value: "sarah@acmecorp.com" },
   ];
 
-  const handleChange = (val: string) => {
-    setEmail(val);
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  const handleChange = (value: string) => {
+    setEmail(value);
+
     if (timerRef.current) clearTimeout(timerRef.current);
-    if (!val.trim()) { setResult({ status: 'idle' }); return; }
-    setResult({ status: 'typing' });
+
+    if (!value.trim()) {
+      setResult({ status: "idle" });
+      return;
+    }
+
+    setResult({ status: "typing" });
     timerRef.current = setTimeout(async () => {
-      setResult({ status: 'checking' });
-      const apiResult = await checkEmailApi(val);
+      setResult({ status: "checking" });
+      const apiResult = await checkEmailApi(value);
       setResult(apiResult);
-    }, 650);
+    }, 500);
   };
 
-  const s = result.status;
-  const borderCls =
-    s === 'valid' ? 'border-green-400 ring-2 ring-green-100' :
-      s === 'free' ? 'border-blue-400 ring-2 ring-blue-100' :
-      s === 'blocked' || s === 'invalid' ? 'border-red-400 ring-2 ring-red-100' :
-        s === 'role' || s === 'tld-error' ? 'border-orange-400 ring-2 ring-orange-100' :
-          s === 'typo' ? 'border-yellow-400 ring-2 ring-yellow-100' :
-            'border-gray-200 focus-within:border-violet-400 focus-within:ring-2 focus-within:ring-violet-100';
+  const stateTone: Record<
+    ValStatus,
+    { border: string; icon: React.ReactNode; text: string; panel?: string }
+  > = {
+    idle: {
+      border: "border-slate-200",
+      icon: <Shield className="h-5 w-5 text-slate-300" />,
+      text: "Type an email to see LeadCop classify it in real time.",
+    },
+    typing: {
+      border: "border-slate-300",
+      icon: <Shield className="h-5 w-5 text-slate-400" />,
+      text: "Waiting for a quick pause before checking.",
+    },
+    checking: {
+      border: "border-slate-400",
+      icon: <RefreshCw className="h-5 w-5 animate-spin text-slate-500" />,
+      text: "Checking the address now.",
+    },
+    blocked: {
+      border: "border-red-300",
+      icon: <X className="h-5 w-5 text-red-500" />,
+      text: result.message || "Temporary email addresses are blocked.",
+      panel: "bg-red-50 text-red-700",
+    },
+    role: {
+      border: "border-amber-300",
+      icon: <AlertCircle className="h-5 w-5 text-amber-500" />,
+      text: result.message || "Role-based email detected.",
+      panel: "bg-amber-50 text-amber-700",
+    },
+    typo: {
+      border: "border-amber-300",
+      icon: <Sparkles className="h-5 w-5 text-amber-500" />,
+      text: result.message || "Possible typo detected.",
+      panel: "bg-amber-50 text-amber-700",
+    },
+    invalid: {
+      border: "border-red-300",
+      icon: <X className="h-5 w-5 text-red-500" />,
+      text: result.message || "Invalid email address.",
+      panel: "bg-red-50 text-red-700",
+    },
+    valid: {
+      border: "border-emerald-300",
+      icon: <CheckCircle2 className="h-5 w-5 text-emerald-500" />,
+      text: result.message || "Looks good.",
+      panel: "bg-emerald-50 text-emerald-700",
+    },
+    "tld-error": {
+      border: "border-amber-300",
+      icon: <AlertCircle className="h-5 w-5 text-amber-500" />,
+      text: result.message || "Invalid domain extension.",
+      panel: "bg-amber-50 text-amber-700",
+    },
+    free: {
+      border: "border-sky-300",
+      icon: <Mail className="h-5 w-5 text-sky-500" />,
+      text: result.message || "Personal email detected.",
+      panel: "bg-sky-50 text-sky-700",
+    },
+  };
+
+  const tone = stateTone[result.status];
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-2xl shadow-violet-100 p-8">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex gap-1.5">
-          <span className="w-3 h-3 rounded-full bg-red-400" />
-          <span className="w-3 h-3 rounded-full bg-yellow-400" />
-          <span className="w-3 h-3 rounded-full bg-green-400" />
+    <div className="rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="mb-5 flex items-center justify-between">
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#584d84]">Real-time Demo</p>
+          <p className="mt-1 text-sm text-slate-500">Experience LeadCop as your users do</p>
         </div>
-        <span className="text-xs text-gray-400 font-mono">leadcop.io / live-demo</span>
+        <div className="rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-500">
+          Sandbox
+        </div>
       </div>
 
-      <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">Email Address</p>
-      <div className={`flex items-center gap-3 px-4 py-3.5 rounded-xl border-2 transition-all duration-200 bg-white ${borderCls}`}>
+      <div className={`flex items-center gap-3 rounded-xl border bg-slate-50 px-4 py-3 ${tone.border}`}>
         <input
           type="email"
           value={email}
-          onChange={e => handleChange(e.target.value)}
-          placeholder="Type any email to test…"
-          className="flex-1 text-gray-800 placeholder-gray-300 outline-none bg-transparent text-sm"
+          onChange={(event) => handleChange(event.target.value)}
+          placeholder="name@company.com"
+          className="min-w-0 flex-1 bg-transparent text-[14px] text-slate-900 outline-none placeholder:text-slate-400"
         />
-        {s === 'checking' && <RefreshCw className="w-5 h-5 text-gray-300 animate-spin flex-shrink-0" />}
-        {s === 'valid' && <Shield className="w-5 h-5 text-green-500 flex-shrink-0" />}
-        {s === 'free' && <Shield className="w-5 h-5 text-blue-500 flex-shrink-0" />}
-        {(s === 'blocked' || s === 'invalid') && <Shield className="w-5 h-5 text-red-500 flex-shrink-0" />}
-        {s === 'role' && <Shield className="w-5 h-5 text-orange-500 flex-shrink-0" />}
-        {s === 'tld-error' && <Shield className="w-5 h-5 text-orange-500 flex-shrink-0" />}
-        {s === 'typo' && <Shield className="w-5 h-5 text-yellow-500 flex-shrink-0" />}
-        {(s === 'idle' || s === 'typing') && <Shield className="w-5 h-5 text-gray-200 flex-shrink-0" />}
+        {tone.icon}
       </div>
 
-      <div className="min-h-[22px] mt-2.5">
-        {s === 'blocked' && <p className="text-sm text-red-600 flex items-center gap-1.5"><X className="w-3.5 h-3.5 flex-shrink-0" />{result.message}</p>}
-        {s === 'role' && <p className="text-sm text-orange-600 flex items-center gap-1.5"><AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />{result.message}</p>}
-        {s === 'tld-error' && <p className="text-sm text-orange-600 flex items-center gap-1.5"><AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />{result.message}</p>}
-        {s === 'typo' && <p className="text-sm text-yellow-700 flex items-center gap-1.5"><AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />{result.message} <button onClick={() => handleChange(result.suggestion!)} className="ml-1 text-violet-600 underline text-xs">Fix it</button></p>}
-        {s === 'invalid' && <p className="text-sm text-red-600 flex items-center gap-1.5"><X className="w-3.5 h-3.5 flex-shrink-0" />{result.message}</p>}
-        {s === 'valid' && <p className="text-sm text-green-600 flex items-center gap-1.5"><Check className="w-3.5 h-3.5 flex-shrink-0" />{result.message}</p>}
-        {s === 'free' && (
-          <div className="flex flex-col gap-2.5">
-            <p className="text-sm text-blue-600 flex items-center gap-1.5 font-medium"><Check className="w-3.5 h-3.5 flex-shrink-0" />{result.message}</p>
-            <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-3 flex items-center justify-between group cursor-default">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-3.5 h-3.5 text-blue-500" />
-                <span className="text-[11px] text-blue-700 font-medium">B2B Intel: Capture work emails instead?</span>
-              </div>
-              <button 
-                className="text-[10px] font-bold text-blue-600 uppercase tracking-tight hover:text-blue-800 transition-colors"
-                onClick={() => setEmail('')}
-              >
-                Enter Work email
-              </button>
-            </div>
-          </div>
+      <div className={`mt-3 rounded-xl px-4 py-3 text-[13px] ${tone.panel || "bg-slate-50 text-slate-600 border border-slate-100"}`}>
+        <div className="flex items-center gap-2">
+          {tone.icon}
+          <span>{tone.text}</span>
+        </div>
+        {result.status === "typo" && result.suggestion && (
+          <button
+            onClick={() => handleChange(result.suggestion!)}
+            className="mt-2 text-[12px] font-bold text-[#584d84] underline underline-offset-4"
+          >
+            Use suggested address
+          </button>
         )}
-        {s === 'checking' && <p className="text-sm text-gray-400">Checking…</p>}
       </div>
 
-      <div className="mt-5 pt-5 border-t border-gray-100">
-        <p className="text-xs text-gray-400 mb-3">Try an example:</p>
+      <div className="mt-6 border-t border-slate-100 pt-5">
+        <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400">Examples</p>
         <div className="flex flex-wrap gap-2">
-          {examples.map(ex => (
-            <button key={ex.value} onClick={() => handleChange(ex.value)}
-              className="text-xs px-3 py-1.5 rounded-full bg-gray-50 text-gray-600 border border-gray-200 hover:border-violet-300 hover:text-violet-700 transition-colors">
-              {ex.label}
+          {examples.map((example) => (
+            <button
+              key={example.value}
+              onClick={() => handleChange(example.value)}
+              className="rounded-full border border-slate-200 px-3 py-1.5 text-[12px] text-slate-600 transition hover:border-[#584d84] hover:text-[#584d84]"
+            >
+              {example.label}
             </button>
           ))}
         </div>
@@ -243,232 +442,593 @@ function LiveDemoWidget() {
   );
 }
 
-// ─── Code Block ───────────────────────────────────────────────────────────────
 function CodeSnippet({ code }: { code: string }) {
   const [copied, setCopied] = useState(false);
-  const copy = () => { navigator.clipboard.writeText(code); setCopied(true); setTimeout(() => setCopied(false), 2000); };
+
+  const copy = () => {
+    navigator.clipboard.writeText(code);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
-    <div className="relative bg-gray-950 rounded-xl overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/5">
-        <div className="flex gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red-500/50" /><span className="w-2.5 h-2.5 rounded-full bg-yellow-500/50" /><span className="w-2.5 h-2.5 rounded-full bg-green-500/50" /></div>
-        <button onClick={copy} className="flex items-center gap-1.5 text-xs text-white/40 hover:text-white/70 transition-colors">
-          {copied ? <><CheckCircle2 className="w-3.5 h-3.5 text-green-400" />Copied!</> : <><Copy className="w-3.5 h-3.5" />Copy</>}
+    <div className="overflow-hidden rounded-[24px] border border-slate-200 bg-slate-950">
+      <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+        <span className="text-xs uppercase tracking-[0.2em] text-white/50">Install snippet</span>
+        <button
+          onClick={copy}
+          className="inline-flex items-center gap-1.5 text-xs text-white/60 transition hover:text-white"
+        >
+          <Copy className="h-3.5 w-3.5" />
+          {copied ? "Copied" : "Copy"}
         </button>
       </div>
-      <pre className="p-5 text-xs font-mono text-green-400 leading-relaxed overflow-x-auto whitespace-pre-wrap"><code>{code}</code></pre>
+      <pre className="overflow-x-auto p-5 text-xs leading-6 text-emerald-300">
+        <code>{code}</code>
+      </pre>
     </div>
   );
 }
 
-// ─── Feature Card ─────────────────────────────────────────────────────────────
-function FeatureCard({ email, lines, badge, badgeCls, dot, icon, title, desc }: {
-  email: string; lines: string[]; badge: string; badgeCls: string;
-  dot: string; icon: React.ReactNode; title: string; desc: string;
+function FeatureCard({
+  icon,
+  title,
+  description,
+  preview,
+  buttonText,
+  primary,
+  wide,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  preview?: {
+    email: string;
+    details: { label: string; value: string }[];
+    badge: { text: string; tone: "red" | "orange" | "emerald" | "amber" | "sky" };
+    dot: string;
+  };
+  buttonText?: string;
+  primary?: boolean;
+  wide?: boolean;
 }) {
+  const badgeTones = {
+    red: "bg-red-50 text-red-600 border-red-100",
+    orange: "bg-orange-50 text-orange-600 border-orange-100",
+    emerald: "bg-emerald-50 text-emerald-600 border-emerald-100",
+    amber: "bg-amber-50 text-amber-600 border-amber-100",
+    sky: "bg-sky-50 text-sky-600 border-sky-100",
+  };
+
+  const dotColors = {
+    red: "bg-red-500",
+    orange: "bg-orange-500",
+    emerald: "bg-emerald-500",
+    amber: "bg-amber-500",
+    sky: "bg-sky-500",
+  };
+
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex flex-col gap-5 hover:shadow-md hover:border-violet-100 transition-all duration-200">
-      <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
-        <div className="flex items-center gap-2 mb-2.5">
-          <span className={`w-2 h-2 rounded-full ${dot}`} /><span className="text-gray-500 text-xs font-mono truncate">{email}</span>
+    <div
+      className={`rounded-2xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md flex flex-col h-full ${wide ? "lg:col-span-3 md:col-span-2" : ""}`}
+    >
+      <div className={`flex flex-col flex-1 ${wide ? "lg:flex-row lg:items-center lg:justify-between lg:gap-12" : ""}`}>
+        <div className="flex-1">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50 text-[#584d84] border border-slate-100">
+              {icon}
+            </div>
+            <h3 className="text-[17px] font-bold text-slate-900 tracking-tight flex items-center gap-2">
+              {title}
+              {wide && <span className="bg-[#584d84] text-white text-[10px] px-2 py-0.5 rounded uppercase tracking-wider font-bold">New</span>}
+            </h3>
+          </div>
+
+          <p className={`text-[15px] leading-relaxed text-slate-600 ${wide ? "mb-6 max-w-xl" : "mb-6"}`}>
+            {description}
+          </p>
+
+          {preview && (
+            <div className="mb-6 rounded-xl border border-slate-100 bg-slate-50 p-4 font-mono text-[11px]">
+              <div className="mb-3 flex items-center gap-2">
+                <div className={`h-2 w-2 rounded-full ${dotColors[preview.badge.tone]}`} />
+                <span className="text-slate-400 font-bold uppercase tracking-wider">Input: {preview.email}</span>
+              </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-1">
+                {preview.details.map((d) => (
+                  <div key={d.label}>
+                    <span className="text-slate-400 font-medium">{d.label}: </span>
+                    <span className={d.value === "true" || d.value === "false" || d.value.includes('"') ? "text-[#584d84] font-bold" : "text-slate-600"}>
+                      {d.value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-        <div className="space-y-0.5 mb-3">{lines.map(l => <div key={l} className="text-xs font-mono text-gray-400">{l}</div>)}</div>
-        <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold ${badgeCls}`}>{badge}</span>
-      </div>
-      <div>
-        <div className="flex items-center gap-2 mb-2"><span className="text-violet-600">{icon}</span><span className="font-semibold text-gray-900 text-sm">{title}</span></div>
-        <p className="text-gray-500 text-sm leading-relaxed">{desc}</p>
+
+        {buttonText && (
+          <div className={`${wide ? "lg:w-48 mt-6 lg:mt-0" : "mt-auto"}`}>
+            <button
+              className={`w-full py-2.5 px-4 rounded-xl text-[14px] font-bold border transition ${primary
+                ? "bg-[#584d84] border-[#584d84] text-white"
+                : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                }`}
+            >
+              {buttonText}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-
-
-// ─── Nav ─────────────────────────────────────────────────────────────────────
-function Nav() {
+function Navbar() {
   const [scrolled, setScrolled] = useState(false);
+  const { user } = useAuth();
+
   useEffect(() => {
-    const h = () => setScrolled(window.scrollY > 10);
-    window.addEventListener('scroll', h);
-    return () => window.removeEventListener('scroll', h);
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 20);
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
   return (
-    <nav className={`sticky top-0 z-50 transition-all duration-200 ${scrolled ? 'bg-white/95 backdrop-blur shadow-sm border-b border-gray-100' : 'bg-transparent'}`}>
-      <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-        <Link href="/" className="group">
-          <Logo size={36} invert={true} />
+    <nav
+      className={`sticky top-0 z-50 border-b transition ${scrolled
+        ? "border-slate-200 bg-[rgba(250,250,249,0.92)] backdrop-blur"
+        : "border-transparent bg-transparent"
+        }`}
+    >
+      <div className="mx-auto flex h-18 max-w-6xl items-center justify-between px-6">
+        <Link href="/" className="flex items-center">
+          <Logo size={34} />
         </Link>
-        <div className="hidden md:flex items-center gap-8 text-sm text-gray-500">
-          <a href="#demo" className="hover:text-gray-900 transition-colors">Live Demo</a>
-          <a href="#how" className="hover:text-gray-900 transition-colors">How it works</a>
-          <a href="#install" className="hover:text-gray-900 transition-colors">Installation</a>
-          <Link href="/docs" className="hover:text-gray-900 transition-colors">Docs</Link>
-          <a href="#pricing" className="hover:text-gray-900 transition-colors">Pricing</a>
-        </div>
-        <div className="flex items-center gap-3">
-          <Link href="/login" className="text-sm text-gray-500 hover:text-gray-900 transition-colors hidden md:block">Log in</Link>
-          <Link href="/register" className="px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 transition-colors shadow-md shadow-violet-200">
-            Get Started Free
+
+        <div className="hidden items-center gap-8 text-sm text-slate-500 md:flex">
+          <a href="#product" className="transition hover:text-slate-900">
+            Product
+          </a>
+          <a href="#how" className="transition hover:text-slate-900">
+            How it works
+          </a>
+          <a href="#install" className="transition hover:text-slate-900">
+            Installation
+          </a>
+          <a href="#pricing" className="transition hover:text-slate-900">
+            Pricing
+          </a>
+          <Link href="/docs" className="transition hover:text-slate-900">
+            Docs
           </Link>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {user ? (
+            <Link
+              href="/dashboard"
+              className="inline-flex h-10 items-center justify-center rounded-full bg-slate-950 px-6 text-sm font-medium text-white transition hover:bg-slate-800"
+            >
+              Dashboard
+            </Link>
+          ) : (
+            <>
+              <Link href="/login" className="hidden text-sm text-slate-500 transition hover:text-slate-900 md:block">
+                Log in
+              </Link>
+              <Link
+                href="/signup"
+                className="inline-flex h-10 items-center justify-center rounded-full bg-slate-950 px-5 text-sm font-medium text-white transition hover:bg-slate-800"
+              >
+                Start free
+              </Link>
+            </>
+          )}
         </div>
       </div>
     </nav>
   );
 }
 
-// ─── Landing Page ────────────────────────────────────────────────────────────
 export default function LandingPage() {
-  const [activeTab, setActiveTab] = useState<'html' | 'wordpress'>('html');
+  const [activeTab, setActiveTab] = useState<"html" | "wordpress">("html");
+  const { user } = useAuth();
 
-  const htmlSnippet = `<!-- Paste just before </body> on your website -->
+  const htmlSnippet = `<!-- Paste just before </body> -->
 <script
   src="https://leadcop.io/temp-email-validator.js"
   data-api-key="YOUR_API_KEY">
 </script>`;
 
-  return (
-    <div className="min-h-screen bg-white" style={{ fontFamily: "'Inter', sans-serif" }}>
-      <Nav />
+  const stats = [
+    { value: "2.4M+", label: "signups checked" },
+    { value: "99.7%", label: "accuracy rate" },
+    { value: "<100ms", label: "average decision time" },
+    { value: "5 min", label: "typical setup" },
+  ];
 
-      {/* ── Hero ─────────────────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-violet-50 via-white to-white pointer-events-none" />
-        <div className="absolute top-0 right-0 w-[700px] h-[700px] bg-violet-100/25 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none" />
-        <div className="relative max-w-6xl mx-auto px-6 pt-20 pb-24">
-          <div className="grid lg:grid-cols-2 gap-16 items-center">
-            <div>
-              <div className="inline-flex items-center gap-2 bg-violet-50 text-violet-700 rounded-full px-4 py-1.5 text-sm mb-8 border border-violet-100 font-medium">
-                <Zap className="w-3.5 h-3.5" />Works on any website — no coding needed
+  const steps = [
+    {
+      number: "01",
+      title: "Connect LeadCop",
+      text: "Add one script or install the WordPress plugin. LeadCop attaches to your forms automatically.",
+    },
+    {
+      number: "02",
+      title: "Check every signup",
+      text: "Disposable, typo, relay, and role-based emails are classified in real time before they enter your CRM.",
+    },
+    {
+      number: "03",
+      title: "Keep the good leads",
+      text: "Real visitors move through the form normally while bad data gets blocked or flagged instantly.",
+    },
+  ];
+
+  const proofCards = [
+    {
+      title: "Cleaner pipelines",
+      description: "Keep junk addresses out of sales workflows, onboarding, and marketing automation from the start.",
+      icon: <Shield className="h-5 w-5" />,
+    },
+    {
+      title: "Lower ad waste",
+      description: "Paid traffic stops turning into fake submissions, which makes channel performance easier to trust.",
+      icon: <Zap className="h-5 w-5" />,
+    },
+    {
+      title: "Better deliverability",
+      description: "Valid inboxes mean fewer bounces, stronger sender reputation, and more dependable campaign data.",
+      icon: <Mail className="h-5 w-5" />,
+    },
+  ];
+
+  const features = [
+    {
+      title: "Disposable Email Detection",
+      description: "Instantly blocks 200,000+ burner and temporary email providers. Updated daily to catch new domains.",
+      icon: <Trash2 className="h-5 w-5" />,
+      preview: {
+        email: "temp123@mailinator.com",
+        details: [{ label: "domain_exists", value: "true" }],
+        badge: { text: "BLOCKED", tone: "red" as const },
+        dot: "red",
+      },
+      buttonText: "Block",
+      primary: false,
+    },
+    {
+      title: "Email Forwarding Detection",
+      description: "Detects hidden relay services and forwarding domains used to mask real user identities.",
+      icon: <MoveRight className="h-5 w-5" />,
+      preview: {
+        email: "forward@outlook.com",
+        details: [{ label: "forwarding", value: '"detected"' }],
+        badge: { text: "FLAG RELAY", tone: "orange" as const },
+        dot: "orange",
+      },
+      buttonText: "Verify Identity",
+    },
+    {
+      title: "MX Records Validation",
+      description: "Verifies that the domain's mail servers are configured and capable of receiving mail.",
+      icon: <Server className="h-5 w-5" />,
+      preview: {
+        email: "contact@example.com",
+        details: [{ label: "mx", value: '"valid"' }],
+        badge: { text: "ACCEPTED", tone: "emerald" as const },
+        dot: "emerald",
+      },
+      buttonText: "Mark as Valid",
+    },
+    {
+      title: "Public Email Detection",
+      description: "Identifies personal email providers like Gmail or Yahoo, perfect for B2B segmentation.",
+      icon: <Globe className="h-5 w-5" />,
+      preview: {
+        email: "john.doe@gmail.com",
+        details: [{ label: "public_domain", value: "true" }],
+        badge: { text: "ASK FOR WORK MAIL", tone: "sky" as const },
+        dot: "sky",
+      },
+      buttonText: "Ask for Work Email",
+    },
+    {
+      title: "Smart Email Suggestions",
+      description: "Intelligently catches common domain typos like gmial.com and suggests the correct fix.",
+      icon: <Sparkles className="h-5 w-5" />,
+      preview: {
+        email: "user@gmial.com",
+        details: [{ label: "suggestion", value: '"user@gmail.com"' }],
+        badge: { text: "SUGGEST FIX", tone: "amber" as const },
+        dot: "amber",
+      },
+      buttonText: "Suggest Fix",
+    },
+    {
+      title: "Role Account Detection",
+      description: "Flags shared addresses like support@ or admin@ that often lead to poor conversions.",
+      icon: <Users className="h-5 w-5" />,
+      preview: {
+        email: "support@company.com",
+        details: [{ label: "role_account", value: "true" }],
+        badge: { text: "FLAG ROLE", tone: "orange" as const },
+        dot: "orange",
+      },
+      buttonText: "Accept",
+    },
+    {
+      title: "Comprehensive TLD Validation",
+      description: "Cross-references every email against a database of 1,400+ official TLDs to catch invalid extensions and malformed domains.",
+      icon: <Globe className="h-5 w-5" />,
+      preview: {
+        email: "user@startup-identity.xyz",
+        details: [
+          { label: "domain_exists", value: "true" },
+          { label: "tld_valid", value: "true" },
+        ],
+        badge: { text: "NEW", tone: "sky" as const },
+        dot: "sky",
+      },
+      buttonText: "Validate Domain",
+      wide: true,
+    },
+  ];
+
+  useEffect(() => {
+    const scriptId = "leadcop-landing-structured-data";
+    const canonicalUrl =
+      typeof window !== "undefined" ? new URL("/", window.location.origin).toString() : "https://leadcop.io/";
+
+    const structuredData = {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          name: "LeadCop",
+          url: canonicalUrl,
+          logo: "https://leadcop.io/favicon.svg",
+        },
+        {
+          "@type": "WebSite",
+          name: "LeadCop",
+          url: canonicalUrl,
+          description:
+            "LeadCop blocks disposable emails, fake signups, and low-quality leads before they reach your pipeline.",
+        },
+        {
+          "@type": "SoftwareApplication",
+          name: "LeadCop",
+          applicationCategory: "BusinessApplication",
+          operatingSystem: "Web",
+          url: canonicalUrl,
+          description:
+            "Real-time disposable email detection and signup quality filtering for websites, forms, and WordPress.",
+          offers: {
+            "@type": "Offer",
+            price: "0",
+            priceCurrency: "USD",
+          },
+        },
+      ],
+    };
+
+    let script = document.getElementById(scriptId) as HTMLScriptElement | null;
+    if (!script) {
+      script = document.createElement("script");
+      script.id = scriptId;
+      script.type = "application/ld+json";
+      document.head.appendChild(script);
+    }
+    script.textContent = JSON.stringify(structuredData);
+
+    return () => {
+      const existing = document.getElementById(scriptId);
+      if (existing) existing.remove();
+    };
+  }, []);
+
+  return (
+    <div className="min-h-screen font-sans text-slate-900 bg-white overflow-x-hidden">
+      <div className="relative">
+        <Navbar />
+
+        <section className="relative pt-16 pb-24 lg:pt-24 lg:pb-32">
+          <div className="mx-auto grid max-w-6xl gap-16 px-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+            
+            {/* Hero Content */}
+            <div className="max-w-xl">
+              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.2em] text-[#584d84] mb-8">
+                <span className="h-2 w-2 rounded-full bg-[#584d84]" />
+                Minimal setup. Immediate protection.
               </div>
-              <h1 className="text-5xl lg:text-6xl font-semibold text-gray-900 mb-6 leading-[1.1] tracking-tight">
-                Stop fake signups<br /><span className="text-violet-600">before they cost you.</span>
+
+              <h1 className="font-display text-4xl font-extrabold tracking-tight text-slate-950 sm:text-5xl md:text-6xl leading-[1.1]">
+                Stop fake signups <span className="text-[#584d84] block mt-2">at the gate.</span>
               </h1>
-              <p className="text-xl text-gray-500 mb-8 leading-relaxed">
-                LeadCop automatically blocks disposable emails, spam bots, and fake accounts from your forms in real time — protecting your list, your ad budget, and your business.
+
+              <p className="mt-8 text-lg leading-relaxed text-slate-600">
+                LeadCop validates every submission in real time. We instantly filter out disposable emails, bots, and low-conversion role accounts before they pollute your pipeline or CRM.
               </p>
-              <div className="flex flex-col sm:flex-row gap-3 mb-10">
-                <Link href="/register" className="px-7 py-4 bg-violet-600 text-white rounded-xl font-medium hover:bg-violet-700 transition-colors flex items-center justify-center gap-2 group shadow-lg shadow-violet-200">
-                  Start for free<ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+
+              <div className="mt-10 flex flex-col sm:flex-row gap-4">
+                <Link
+                  href="/signup"
+                  className="inline-flex h-12 items-center justify-center rounded-xl bg-[#584d84] px-8 text-[15px] font-bold text-white transition hover:opacity-90"
+                >
+                  Start free trial
                 </Link>
-                <a href="#demo" className="px-7 py-4 bg-white text-gray-800 rounded-xl font-medium border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-colors flex items-center justify-center gap-2">
-                  Try live demo<ChevronDown className="w-4 h-4" />
+                <a
+                  href="#demo"
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-8 text-[15px] font-bold text-slate-700 transition hover:bg-slate-50"
+                >
+                  Run live demo
+                  <ArrowRight className="h-4 w-4" />
                 </a>
               </div>
-              <div className="flex flex-wrap gap-6 text-sm text-gray-500">
-                {['No credit card required', 'Free plan forever', '5-min setup'].map(t => (
-                  <span key={t} className="flex items-center gap-1.5"><Check className="w-4 h-4 text-green-500" />{t}</span>
+
+              <div className="mt-10 flex flex-wrap gap-5 text-[13px] font-semibold text-indigo-950/70">
+                {["No credit card", "Works on any website", "WordPress plugin available"].map((item) => (
+                  <span key={item} className="inline-flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                    {item}
+                  </span>
                 ))}
               </div>
             </div>
-            <div id="demo">
-              <div className="mb-3 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                <span className="text-sm text-gray-500 font-medium">Live demo — type any email below</span>
-              </div>
+
+            <div id="demo" className="mt-10 lg:mt-0">
               <LiveDemoWidget />
-              <p className="mt-3 text-xs text-gray-400 text-center">This is exactly what your visitors see when they sign up on your form.</p>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* ── Trust Bar ────────────────────────────────────────────────────── */}
-      <section className="border-y border-gray-100 bg-gray-50/60 py-10">
-        <div className="max-w-5xl mx-auto px-6">
-          <p className="text-center text-xs text-gray-400 uppercase tracking-widest mb-8">Trusted by 5,000+ businesses worldwide</p>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-            {[{ v: '2.4M+', l: 'Signups checked' }, { v: '99.7%', l: 'Accuracy rate' }, { v: '<100ms', l: 'Check speed' }, { v: '5 min', l: 'To set up' }].map(s => (
-              <div key={s.l}><div className="text-3xl font-semibold text-gray-900">{s.v}</div><div className="text-sm text-gray-500 mt-1">{s.l}</div></div>
+      <section className="border-y border-slate-100 bg-slate-50/50">
+        <div className="mx-auto max-w-6xl px-6 py-12">
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {stats.map((stat) => (
+              <div key={stat.label} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <p className="font-display text-4xl font-extrabold tracking-tight text-[#584d84]">{stat.value}</p>
+                <p className="mt-2 text-[14px] font-semibold text-slate-500">{stat.label}</p>
+              </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ── How It Works ─────────────────────────────────────────────────── */}
-      <section id="how" className="max-w-5xl mx-auto px-6 py-24">
-        <div className="text-center mb-16">
-          <p className="text-sm font-semibold text-violet-600 uppercase tracking-widest mb-3">Simple by design</p>
-          <h2 className="text-4xl font-semibold text-gray-900 mb-4">How it works</h2>
-          <p className="text-lg text-gray-500 max-w-xl mx-auto">Get your forms protected in three steps. No developer, no coding, no stress.</p>
+      <section id="product" className="mx-auto max-w-6xl px-6 py-24">
+        <div className="max-w-3xl text-center mx-auto mb-16">
+          <p className="text-[12px] font-bold uppercase tracking-[0.2em] text-[#584d84]">Why teams use LeadCop</p>
+          <h2 className="mt-4 font-display text-4xl font-extrabold tracking-tight text-slate-950 sm:text-5xl leading-[1.1]">
+            Built to remove friction, <br className="hidden sm:block" />not add it.
+          </h2>
+          <p className="mt-6 text-lg leading-relaxed text-slate-600">
+            Keep bad data out, keep good leads moving. LeadCop acts as a seamless gateway that ensures only high-quality contacts reach your team.
+          </p>
         </div>
-        <div className="grid md:grid-cols-3 gap-6">
-          {[
-            { step: '01', icon: <Lock className="w-6 h-6 text-violet-600" />, title: 'Add one line to your website', desc: 'Paste a single script tag before the closing tag on your page — or install the WordPress plugin in 30 seconds.' },
-            { step: '02', icon: <Sparkles className="w-6 h-6 text-violet-600" />, title: 'We check every email silently', desc: "Every time someone fills out your form, LeadCop instantly validates the address in the background. Invisible to real users." },
-            { step: '03', icon: <Shield className="w-6 h-6 text-violet-600" />, title: 'Fake ones are blocked instantly', desc: 'Disposable emails, spam bots, and fake addresses are stopped with a friendly message. Real users sail right through.' },
-          ].map(({ step, icon, title, desc }) => (
-            <div key={step} className="relative bg-white rounded-2xl border border-gray-100 shadow-sm p-8 group hover:shadow-md hover:border-violet-100 transition-all duration-200">
-              <div className="text-6xl font-semibold text-gray-50 absolute top-5 right-5 select-none group-hover:text-violet-50 transition-colors">{step}</div>
-              <div className="w-12 h-12 bg-violet-50 rounded-xl flex items-center justify-center mb-5 group-hover:bg-violet-100 transition-colors">{icon}</div>
-              <h3 className="font-semibold text-gray-900 mb-2 leading-snug">{title}</h3>
-              <p className="text-gray-500 text-sm leading-relaxed">{desc}</p>
-            </div>
+
+        <div className="grid gap-6 md:grid-cols-3">
+          {proofCards.map((card) => (
+            <FeatureCard
+              key={card.title}
+              icon={card.icon}
+              title={card.title}
+              description={card.description}
+            />
           ))}
         </div>
       </section>
 
-      {/* ── Installation ─────────────────────────────────────────────────── */}
-      <section id="install" className="bg-white py-24 border-y border-gray-100">
-        <div className="max-w-5xl mx-auto px-6">
-          <div className="grid lg:grid-cols-2 gap-16 items-start">
-            <div>
-              <p className="text-sm font-semibold text-violet-600 uppercase tracking-widest mb-3">Works everywhere</p>
-              <h2 className="text-4xl font-semibold text-gray-900 mb-5 leading-tight">One line of code.<br />Any platform.</h2>
-              <p className="text-gray-500 text-lg mb-8 leading-relaxed">
-                LeadCop connects to any website or signup form — no platform switching, no redesigning, no technical work.
-              </p>
-              <div className="flex flex-wrap gap-2 mb-8">
-                {[
-                  { name: 'WordPress', emoji: '🔌' },
-                  { name: 'HTML Forms', emoji: '📄' },
-                  { name: 'React / Next.js', emoji: '⚛️' },
-                  { name: 'Contact Form 7', emoji: '📋' },
-                  { name: 'WPForms', emoji: '🗂️' },
-                  { name: 'Any Platform', emoji: '🌍' },
-                ].map(p => (
-                  <span key={p.name} className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 text-gray-600 rounded-lg text-sm border border-gray-200 hover:border-violet-300 transition-colors">
-                    <span>{p.emoji}</span>{p.name}
-                  </span>
-                ))}
-              </div>
-              <div className="flex items-center gap-3 p-4 bg-green-50 rounded-xl border border-green-100">
-                <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" />
-                <p className="text-green-800 text-sm"><strong>WordPress plugin available</strong> — install in 30 seconds from the plugin directory.</p>
-              </div>
+      <section id="how" className="border-y border-slate-100 bg-white">
+        <div className="mx-auto max-w-6xl px-6 py-24">
+          <div className="grid md:grid-cols-2 gap-12 lg:gap-24 mb-16 items-end">
+            <div className="max-w-2xl">
+              <p className="text-[12px] font-bold uppercase tracking-[0.2em] text-[#584d84]">How it works</p>
+              <h2 className="mt-4 font-display text-4xl font-extrabold tracking-tight text-slate-950 sm:text-5xl leading-[1.1]">
+                Three steps to a cleaner funnel
+              </h2>
             </div>
-            <div>
-              <div className="flex gap-1 mb-4 bg-gray-100 rounded-lg p-1 w-fit">
-                {(['html', 'wordpress'] as const).map(t => (
-                  <button key={t} onClick={() => setActiveTab(t)}
-                    className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === t ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}>
-                    {t === 'html' ? 'Any Website (HTML)' : '🔌 WordPress Plugin'}
-                  </button>
-                ))}
+            <p className="max-w-xl text-lg leading-relaxed text-slate-600">
+              No redesign, no custom flow, no complicated setup sequence. Just install, check, and keep the good data.
+            </p>
+          </div>
+          <div className="grid gap-6 md:grid-cols-3">
+            {steps.map((step) => (
+              <div key={step.number} className="rounded-2xl border border-slate-200 bg-white p-8 transition-shadow hover:shadow-md">
+                <p className="text-[13px] font-extrabold uppercase tracking-[0.2em] text-[#584d84]">{step.number}</p>
+                <h3 className="mt-5 font-display text-[22px] font-bold text-slate-950">{step.title}</h3>
+                <p className="mt-4 text-[16px] leading-relaxed text-slate-600">{step.text}</p>
               </div>
-              {activeTab === 'html' ? (
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="install" className="mx-auto max-w-6xl px-6 py-20">
+        <div className="grid gap-12 lg:grid-cols-[0.85fr_1.15fr]">
+          <div>
+            <p className="text-xs uppercase tracking-[0.22em] font-semibold" style={{ color: "#584d84" }}>Installation</p>
+            <h2 className="mt-3 text-4xl font-semibold tracking-[-0.04em] text-slate-950">
+              One line of code on any website.
+            </h2>
+            <p className="mt-4 text-base leading-7 text-slate-600">
+              LeadCop works with static HTML, React, Next.js, WordPress, and form builders. You keep your existing
+              stack and add protection on top.
+            </p>
+
+            <div className="mt-8 grid gap-3 sm:grid-cols-2">
+              {["HTML forms", "React and Next.js", "WordPress", "WPForms and Contact Form 7"].map((item) => (
+                <div key={item} className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+                  {item}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div className="inline-flex rounded-full border border-slate-200 bg-white p-1">
+              {(["html", "wordpress"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`rounded-full px-4 py-2 text-sm transition ${activeTab === tab
+                    ? "text-white"
+                    : "text-slate-600"
+                  }`}
+                  style={activeTab === tab ? { background: "#584d84" } : {}}
+                >
+                  {tab === "html" ? "HTML snippet" : "WordPress plugin"}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-5">
+              {activeTab === "html" ? (
                 <div>
                   <CodeSnippet code={htmlSnippet} />
-                  <p className="mt-3 text-gray-500 text-sm">That's it. LeadCop finds and protects every signup form on your page automatically.</p>
-                  <Link href="/docs" className="mt-4 inline-flex items-center gap-2 text-sm text-violet-600 hover:text-violet-700 transition-colors font-medium">
-                    View full documentation <ArrowRight className="w-3.5 h-3.5" />
+                  <p className="mt-3 text-sm text-slate-600">
+                    Paste the script once and LeadCop protects every signup form it can detect on the page.
+                  </p>
+                  <Link
+                    href="/docs"
+                    className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-slate-900"
+                  >
+                    View developer docs
+                    <ArrowRight className="h-4 w-4" />
                   </Link>
                 </div>
               ) : (
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                  <div className="flex items-center gap-1.5 px-4 py-2.5 bg-gray-50 border-b border-gray-100">
-                    <span className="w-2.5 h-2.5 rounded-full bg-red-400" /><span className="w-2.5 h-2.5 rounded-full bg-yellow-400" /><span className="w-2.5 h-2.5 rounded-full bg-green-400" />
-                    <span className="ml-2 text-xs text-gray-400 font-mono">WordPress Installation</span>
-                  </div>
-                  <div className="p-6 space-y-4 text-sm text-gray-600">
-                    {['Go to WordPress Dashboard → Plugins → Add New', 'Search for "LeadCop Email Validator"', 'Click Install Now → then Activate', 'Go to Settings → LeadCop', 'Paste your API key and click Save'].map((step, i) => (
-                      <div key={i} className="flex items-start gap-4">
-                        <div className="w-6 h-6 rounded-full bg-violet-100 text-violet-600 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">{i + 1}</div>
-                        <span>{step}</span>
+                <div className="rounded-[24px] border border-slate-200 bg-white p-6">
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-400">WordPress setup</p>
+                  <div className="mt-5 space-y-4">
+                    {[
+                      "Download the plugin ZIP file below.",
+                      "Open WordPress Dashboard → Plugins → Add New → Upload Plugin.",
+                      "Install and activate the plugin.",
+                      "Paste your API key in LeadCop settings.",
+                      "Save and start protecting your forms.",
+                    ].map((step, index) => (
+                      <div key={step} className="flex items-start gap-3">
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white" style={{ background: "#584d84" }}>
+                          {index + 1}
+                        </div>
+                        <p className="pt-1 text-sm text-slate-600">{step}</p>
                       </div>
                     ))}
-                    <div className="flex items-center gap-2.5 pt-2 text-green-600 font-medium">
-                      <CheckCircle2 className="w-5 h-5" /><span>You're protected!</span>
-                    </div>
+                  </div>
+                  <div className="mt-6 border-t border-slate-100 pt-6">
+                    <a
+                      href="/downloads/leadcop-email-validator.zip"
+                      download
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
+                    >
+                      <Download className="h-4 w-4" />
+                      Download Plugin ZIP
+                    </a>
                   </div>
                 </div>
               )}
@@ -477,100 +1037,154 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── Features Bento Grid ───────────────────────────────────────────── */}
-      <section id="features" className="bg-gray-50 py-24">
-        <div className="max-w-5xl mx-auto px-6">
-          <div className="text-center mb-16">
-            <p className="text-sm font-semibold text-violet-600 uppercase tracking-widest mb-3">Full protection</p>
-            <h2 className="text-4xl font-semibold text-gray-900 mb-4">Every type of fake email, blocked.</h2>
-            <p className="text-lg text-gray-500 max-w-xl mx-auto">LeadCop checks every angle so nothing slips through — without ever bothering your real customers.</p>
+      <section className="border-y border-slate-200 bg-white">
+        <div className="mx-auto max-w-6xl px-6 py-20">
+          <div className="text-center mb-12">
+            <p className="text-xs uppercase tracking-[0.22em] font-semibold" style={{ color: "#584d84" }}>Coverage</p>
+            <h2 className="mt-4 text-4xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-5xl">
+              Everything you need to validate emails instantly
+            </h2>
+            <p className="mt-4 text-slate-600 max-w-2xl mx-auto">
+              Understand email quality in real-time without technical complexity. Precision checks for every contact.
+            </p>
           </div>
-          <div className="grid md:grid-cols-3 gap-5 mb-5">
-            <FeatureCard email="user@mailinator.com" lines={['disposable: true', 'provider: "mailinator"']} badge="BLOCKED" badgeCls="bg-red-100 text-red-600" dot="bg-red-400" icon={<Mail className="w-4 h-4" />} title="Disposable Email Detection" desc="Instantly blocks 200,000+ burner & temporary email providers. Updated daily, zero false positives on real addresses." />
-            <FeatureCard email="user@company.dev-null" lines={['valid_tld: false', 'detected: "unsupported extension"']} badge="BLOCKED" badgeCls="bg-red-100 text-red-600" dot="bg-red-400" icon={<Globe className="w-4 h-4" />} title="Comprehensive TLD Validation" desc="Cross-references every email against a database of 1,400+ official TLDs to catch invalid extensions and malformed domains." />
-            <FeatureCard email="user@privaterelay.appleid.com" lines={['relay_detected: true', 'service: "Apple Private Relay"']} badge="FLAG RELAY" badgeCls="bg-orange-100 text-orange-600" dot="bg-orange-400" icon={<RefreshCw className="w-4 h-4" />} title="Forwarding & Relay Detection" desc="Detects relay services and forwarding domains (like Apple Private Relay or Mozilla Relay) used to mask real identities." />
-          </div>
-          <div className="grid md:grid-cols-2 gap-5 mb-5">
-            <FeatureCard email="admin@yourcompany.com" lines={['role_account: true', 'prefix: "admin"']} badge="FLAG ROLE" badgeCls="bg-orange-100 text-orange-600" dot="bg-orange-400" icon={<AtSign className="w-4 h-4" />} title="Role Address Detection" desc="Flags shared inboxes like info@, support@, admin@ that often cause high unsubscribe rates and poor deliverability." />
-            <FeatureCard email="sarah@acmecorp.com" lines={['real_inbox: true', 'deliverable: true']} badge="✓ ACCEPTED" badgeCls="bg-green-100 text-green-600" dot="bg-green-400" icon={<CheckCircle2 className="w-4 h-4" />} title="Real Inbox Verification" desc="Verifies the inbox actually exists and can receive messages — so your campaigns always reach real people." />
-          </div>
-          <div className="grid md:grid-cols-3 gap-5">
-            <FeatureCard email="john@gmial.com" lines={['typo_detected: true', 'did_you_mean: "gmail.com"']} badge="SUGGEST FIX" badgeCls="bg-yellow-100 text-yellow-700" dot="bg-yellow-400" icon={<Sparkles className="w-4 h-4" />} title="Smart Typo Correction" desc="Catches typos like gmial.com and suggests the right fix so you never lose a real lead." />
-            <FeatureCard email="user@gmail.com" lines={['free_provider: true', 'suggest_work_email: true']} badge="ASK FOR WORK MAIL" badgeCls="bg-blue-100 text-blue-600" dot="bg-blue-400" icon={<UserX className="w-4 h-4" />} title="Free Email Filter" desc="Optionally prompt visitors for their work email — helps you capture higher-quality B2B leads." />
-            <FeatureCard email="hello@bad-domain.m" lines={['syntax_error: true', 'tld_invalid: true']} badge="INVALID" badgeCls="bg-red-100 text-red-600" dot="bg-red-400" icon={<FileWarning className="w-4 h-4" />} title="Syntax Validation" desc="Catches malformed addresses that would bounce and quietly damage your sender reputation." />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {features.map((feature) => (
+              <FeatureCard
+                key={feature.title}
+                icon={feature.icon}
+                title={feature.title}
+                description={feature.description}
+                preview={feature.preview}
+                buttonText={feature.buttonText}
+                primary={feature.primary}
+                wide={feature.wide}
+              />
+            ))}
           </div>
         </div>
       </section>
 
-      {/* ── Testimonials ─────────────────────────────────────────────────── */}
-      <section className="max-w-5xl mx-auto px-6 py-24">
-        <div className="text-center mb-16">
-          <p className="text-sm font-semibold text-violet-600 uppercase tracking-widest mb-3">Real customers</p>
-          <h2 className="text-4xl font-semibold text-gray-900 mb-4">Their lists got cleaner. Fast.</h2>
+      <section className="mx-auto max-w-6xl px-6 py-24">
+        <div className="max-w-2xl">
+          <p className="text-[12px] font-bold uppercase tracking-[0.2em] text-[#584d84]">Social Proof</p>
+          <h2 className="mt-3 font-display text-4xl font-extrabold tracking-tight text-slate-950">
+            Trusted by security ops & marketing.
+          </h2>
         </div>
-        <div className="grid md:grid-cols-3 gap-6">
+
+        <div className="mt-12 grid gap-6 md:grid-cols-3">
           {[
-            { quote: "I was wasting money on email campaigns to fake addresses. After LeadCop, my open rates jumped from 12% to 34% in one month.", name: "Marcus T.", role: "E-commerce store owner" },
-            { quote: "The WordPress plugin installed in under a minute. I'm not technical at all but had it running before my morning coffee.", name: "Rachel K.", role: "Marketing consultant" },
-            { quote: "We run paid ads to a landing page. LeadCop stopped bots from eating our ad budget with fake signups. ROI improved immediately.", name: "David M.", role: "SaaS founder" },
-          ].map(({ quote, name, role }) => (
-            <div key={name} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-7 hover:shadow-md hover:border-violet-100 transition-all duration-200">
-              <div className="flex gap-0.5 mb-4">{[1, 2, 3, 4, 5].map(i => <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />)}</div>
-              <p className="text-gray-600 text-sm leading-relaxed mb-5">"{quote}"</p>
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center text-violet-600 font-semibold text-sm flex-shrink-0">{name[0]}</div>
-                <div><div className="text-sm font-semibold text-gray-900">{name}</div><div className="text-xs text-gray-400">{role}</div></div>
+            {
+              quote: "Our CRM stopped filling up with junk the same day we installed it.",
+              name: "Marcus T.",
+              role: "E-commerce founder",
+            },
+            {
+              quote: "The plugin was simple enough that marketing handled setup without engineering.",
+              name: "Rachel K.",
+              role: "Growth consultant",
+            },
+            {
+              quote: "Paid signup campaigns became easier to trust because fake leads dropped off immediately.",
+              name: "David M.",
+              role: "SaaS operator",
+            },
+          ].map((item) => (
+            <div key={item.name} className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+              <div className="mb-6 flex gap-1">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <Star key={star} className="h-4 w-4 fill-amber-400 text-amber-400" />
+                ))}
+              </div>
+              <p className="text-[15px] leading-relaxed text-slate-600">"{item.quote}"</p>
+              <div className="mt-8 border-t border-slate-100 pt-6">
+                <p className="text-[14px] font-bold text-slate-900">{item.name}</p>
+                <p className="text-[12px] font-semibold text-[#584d84]">{item.role}</p>
               </div>
             </div>
           ))}
         </div>
       </section>
 
-      {/* ── Pricing ──────────────────────────────────────────────────────── */}
       <PricingSection />
 
-      {/* ── Newsletter Section (Minimalist) ─────────────────────────────────── */}
-      <section className="py-24 bg-gray-50/50 border-y border-gray-100">
-        <div className="max-w-2xl mx-auto px-6 text-center">
-          <div className="inline-flex items-center gap-2 text-violet-600 font-semibold text-[10px] uppercase tracking-[0.2em] mb-4">
-            <span className="w-8 h-[1px] bg-violet-200" />
-            Stay Updated
-            <span className="w-8 h-[1px] bg-violet-200" />
+      <section className="bg-[#584d84]">
+        <div className="mx-auto max-w-6xl px-6 py-24 text-center">
+          <p className="text-[12px] font-bold uppercase tracking-[0.2em] text-white/60">Newsletter</p>
+          <h2 className="mt-4 font-display text-4xl font-extrabold tracking-tight text-white">
+            Practical notes on lead quality.
+          </h2>
+          <p className="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-white/70">
+            Weekly product updates, anti-spam tactics, and lessons from teams cleaning up acquisition funnels.
+          </p>
+          <div className="mx-auto mt-10 max-w-xl p-8 rounded-3xl bg-white/5 border border-white/10">
+            <NewsletterForm />
           </div>
-          <h2 className="text-3xl font-semibold text-gray-900 mb-4 tracking-tight">Master lead protection.</h2>
-          <p className="text-gray-500 text-sm mb-10 leading-relaxed">
-            Join 5,000+ developers. Weekly insights on anti-spam strategies and deliverability.
-          </p>
-          
-          <NewsletterForm />
-          
-          <p className="mt-8 text-[11px] text-gray-400 font-medium">
-            No spam. Unsubscribe with one click.
-          </p>
         </div>
       </section>
 
-      {/* ── Footer ───────────────────────────────────────────────────────── */}
-      <footer className="bg-white py-14 border-t border-gray-100">
-        <div className="max-w-5xl mx-auto px-6">
-          <div className="flex flex-col md:flex-row justify-between gap-10 mb-12">
-            <div className="max-w-xs">
-              <Logo size={34} invert={true} className="mb-4" />
-              <p className="text-gray-500 text-sm leading-relaxed">Protect your signup forms from fake emails, bots, and spam — automatically, on any platform.</p>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-10 text-sm">
-              <div><p className="text-gray-900 font-semibold mb-4">Product</p>{['Features', 'Pricing', 'Live Demo', 'Changelog'].map(l => <a key={l} href="#" className="block text-gray-500 hover:text-violet-600 transition-colors mb-3">{l}</a>)}</div>
-              <div><p className="text-gray-900 font-semibold mb-4">Developers</p>{[{ l: 'Documentation', to: '/docs' }, { l: 'HTML Integration', to: '/docs' }, { l: 'WordPress Plugin', to: '/docs' }, { l: 'REST API', to: '/docs' }].map(({ l, to }) => <Link key={l} href={to} className="block text-gray-500 hover:text-violet-600 transition-colors mb-3">{l}</Link>)}</div>
-              <div><p className="text-gray-900 font-semibold mb-4">Company</p>{['About', 'Blog', 'Contact', 'Privacy', 'Terms'].map(l => <a key={l} href="#" className="block text-gray-500 hover:text-violet-600 transition-colors mb-3">{l}</a>)}</div>
-            </div>
+      <footer className="bg-white mx-auto px-6 py-16">
+        <div className="max-w-6xl mx-auto flex flex-col gap-16 border-t border-slate-100 pt-16 md:flex-row md:justify-between">
+          <div className="max-w-sm">
+            <Logo size={34} />
+            <p className="mt-6 text-[15px] leading-relaxed text-slate-500">
+              Protect signup forms from disposable emails, bot traffic, and bad lead data without rebuilding your site.
+            </p>
           </div>
-          <div className="border-t border-gray-100 pt-8 flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-gray-400">
-            <p>© 2026 LeadCop. All rights reserved.</p>
-            <p>Made to protect your business — not complicate it.</p>
+
+          <div className="grid grid-cols-2 gap-12 text-[14px] font-medium text-slate-500 md:grid-cols-3">
+            <div className="space-y-4">
+              <p className="font-bold tracking-tight text-slate-900">Product</p>
+              <a href="#product" className="block transition hover:text-[#584d84]">
+                Features
+              </a>
+              <a href="#pricing" className="block transition hover:text-[#584d84]">
+                Pricing
+              </a>
+              <a href="#demo" className="block transition hover:text-[#584d84]">
+                Demo
+              </a>
+            </div>
+            <div className="space-y-4">
+              <p className="font-bold tracking-tight text-slate-900">Developers</p>
+              <Link href="/docs" className="block transition hover:text-[#584d84]">
+                Documentation
+              </Link>
+              <Link href="/docs" className="block transition hover:text-[#584d84]">
+                API
+              </Link>
+              <Link href="/docs" className="block transition hover:text-[#584d84]">
+                Integration guide
+              </Link>
+            </div>
+            <div className="space-y-4">
+              <p className="font-bold tracking-tight text-slate-900">Account</p>
+              {user ? (
+                <Link href="/dashboard" className="block transition hover:text-[#584d84]">
+                  Dashboard
+                </Link>
+              ) : (
+                <>
+                  <Link href="/login" className="block transition hover:text-[#584d84]">
+                    Log in
+                  </Link>
+                  <Link href="/signup" className="block transition hover:text-[#584d84]">
+                    Start free
+                  </Link>
+                </>
+              )}
+            </div>
           </div>
         </div>
+
+        <div className="max-w-6xl mx-auto mt-12 flex flex-col gap-4 text-[13px] font-semibold text-slate-400 md:flex-row md:items-center md:justify-between">
+          <p>© 2026 LeadCop. All rights reserved.</p>
+          <p>Lead validation, simplified.</p>
+        </div>
       </footer>
+      </div>
     </div>
   );
 }
-

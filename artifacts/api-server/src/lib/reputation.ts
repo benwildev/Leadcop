@@ -29,6 +29,20 @@ const FORWARDING_PROVIDERS = new Set([
   "relay.firefox.com",
 ]);
 
+const RELAY_MX_SUFFIXES = [
+  "simplelogin.co",
+  "simplelogin.io",
+  "simplelogin.me",
+  "anonaddy.me",
+  "anonaddy.com",
+  "addy.io",
+  "mozmail.com",
+  "duck.com",
+  "privaterelay.appleid.com",
+  "mx-relay.appleid.com",
+  "relay.firefox.com",
+];
+
 const ROLE_ACCOUNTS = new Set([
   "admin", "administrator", "info", "information", "noreply", "no-reply",
   "support", "contact", "help", "helpdesk", "billing", "sales",
@@ -38,6 +52,7 @@ const ROLE_ACCOUNTS = new Set([
   "feedback", "privacy", "legal", "careers", "jobs", "hr", "team",
   "donotreply", "do-not-reply", "bounce", "bounces",
   "hi", "hello", "desk", "customer", "press", "account", "accounts",
+  "dev", "developer", "developers",
 ]);
 
 const COMMON_TYPOS: Record<string, string> = {
@@ -54,9 +69,70 @@ const COMMON_TYPOS: Record<string, string> = {
   "protonmaill.com": "protonmail.com",
 };
 
+/**
+ * 🧠 Brain: Calculate Levenshtein Distance (edit distance) between two strings.
+ * Used for advanced typo detection.
+ */
+function getLevenshteinDistance(a: string, b: string): number {
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+
+  const matrix: number[][] = [];
+
+  for (let i = 0; i <= b.length; i++) {
+    matrix[i] = [i];
+  }
+
+  for (let j = 0; j <= a.length; j++) {
+    matrix[0][j] = j;
+  }
+
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1, // substitution
+          matrix[i][j - 1] + 1,     // insertion
+          matrix[i - 1][j] + 1      // deletion
+        );
+      }
+    }
+  }
+
+  return matrix[b.length][a.length];
+}
+
 export function getDomainSuggestion(domain: string): string | null {
   const lower = domain.toLowerCase();
-  return COMMON_TYPOS[lower] || null;
+
+  // 🧠 Brain: If it's already a major provider, don't suggest anything
+  if (FREE_EMAIL_PROVIDERS.has(lower)) return null;
+
+  // 1. Direct match from legacy map (covers common multi-char typos)
+  if (COMMON_TYPOS[lower]) return COMMON_TYPOS[lower];
+
+  // 2. TLD cleanup for major providers (e.g. gmail.co -> gmail.com)
+  const parts = lower.split(".");
+  const tld = parts.pop();
+  const base = parts.join(".");
+
+  if (base === "gmail" && (tld === "co" || tld === "cm" || tld === "om")) return "gmail.com";
+  if (base === "yahoo" && (tld === "co" || tld === "cm" || tld === "om")) return "yahoo.com";
+  if (base === "hotmail" && (tld === "co" || tld === "cm")) return "hotmail.com";
+
+  // 3. Fuzzy match against all major free providers
+  // We only suggest if distance is exactly 1 to avoid false positives.
+  for (const provider of FREE_EMAIL_PROVIDERS) {
+    if (Math.abs(lower.length - provider.length) > 1) continue;
+
+    if (getLevenshteinDistance(lower, provider) === 1) {
+      return provider;
+    }
+  }
+
+  return null;
 }
 
 export interface ReputationChecks {
@@ -103,58 +179,125 @@ export function calculateEntropy(str: string): number {
 /**
  * 🧠 Brain: Detects if the local part of an email is likely gibberish.
  */
-export function isGibberish(localPart: string): boolean {
-  if (localPart.length < 5) return false; // Too short to judge accurately
-  
-  const lower = localPart.toLowerCase();
+export function isGibberish(str: string): boolean {
+  if (!str || str.length < 4) return false;
 
-  // 1. Check for long sequences of consonants (e.g., "dfgfth")
-  const consonantsCount = lower.match(/[bcdfghjklmnpqrstvwxyz]{5,}/g);
-  if (consonantsCount) return true;
+  const cleaned = str.toLowerCase().replace(/[^a-z]/g, "");
+  if (cleaned.length < 3) return false;
 
-  // 2. Check for common keyboard patterns
-  const patterns = ["qwerty", "asdfgh", "zxcvbn", "123456", "qazwsx", "1q2w3e"];
-  if (patterns.some(p => lower.includes(p))) return true;
+  let score = 0;
 
-  // 3. Shannon Entropy Check
-  // Long strings (>8 chars) with high complexity are almost always junk
-  if (lower.length > 8) {
-    const entropy = calculateEntropy(lower);
-    if (entropy > 3.4 && !lower.includes(".") && !lower.includes("_")) {
-      return true;
+  // ---------- 1. Vowel Ratio ----------
+  const vowelCount = (cleaned.match(/[aeiou]/g) || []).length;
+  const vowelRatio = vowelCount / cleaned.length;
+
+  if (cleaned.length >= 6 && (vowelRatio < 0.2 || vowelRatio > 0.8)) {
+    score += 2;
+  }
+
+  // ---------- 2. Long consonant streak ----------
+  if (/[bcdfghjklmnpqrstvwxyz]{4,}/.test(cleaned)) {
+    score += 2;
+  }
+
+  // ---------- 3. Repeating characters ----------
+  if (/(.)\1{3,}/.test(cleaned)) {
+    score += 2;
+  }
+
+  // ---------- 4. Keyboard patterns ----------
+  const patterns = ["qwerty", "asdfgh", "zxcvbn", "qazwsx", "1q2w3e"];
+  if (patterns.some(p => str.toLowerCase().includes(p))) {
+    score += 2;
+  }
+
+  // ---------- 5. Shannon Entropy ----------
+  const entropy = calculateEntropy(cleaned);
+  if (cleaned.length > 8 && (entropy > 3.5 || entropy < 1.5)) {
+    score += 2;
+  }
+
+  // ---------- 6. Bigram frequency ----------
+  const commonBigrams = [
+    "th", "he", "in", "er", "an", "re", "on", "at", "en", "nd",
+    "ti", "es", "or", "te", "of", "ed", "is", "it", "al", "ar"
+  ];
+
+  let badBigramCount = 0;
+  for (let i = 0; i < cleaned.length - 1; i++) {
+    const pair = cleaned.slice(i, i + 2);
+    if (!commonBigrams.includes(pair)) {
+      badBigramCount++;
     }
   }
 
-  // 4. Repeating characters
-  if (/(.)\1{4,}/.test(lower)) return true;
+  const badRatio = badBigramCount / (cleaned.length - 1);
+  if (badRatio > 0.8) score += 2;
 
-  return false;
+  // ---------- 7. Rare letter combinations ----------
+  if (/[qxz]{3,}/.test(cleaned)) {
+    score += 1;
+  }
+
+  // ---------- 8. No vowel words ----------
+  if (!/[aeiou]/.test(cleaned)) {
+    score += 3;
+  }
+
+  // ---------- 9. Word-like structure ----------
+  // Detect if it looks like actual pronounceable word
+  if (!/[aeiou]{1,2}[bcdfghjklmnpqrstvwxyz]{1,2}/.test(cleaned)) {
+    score += 1;
+  }
+
+  // ---------- Final Decision ----------
+  return score >= 4;
 }
+
+
+
 
 /**
  * 🔒 Basic security gate for public forms (Registration, Newsletter)
  */
 export function performBasicSecurityChecks(email: string) {
-  const [localPart, domain] = email.split("@");
-  if (!domain) return { allowed: false, reason: "Invalid email" };
+  const parts = email.split("@");
+  if (parts.length !== 2) return { allowed: false, reason: "Invalid email format" };
 
+  const [localPart, domain] = parts;
   const cleanDomain = domain.toLowerCase().trim();
-  const tld = cleanDomain.split(".").pop() ?? "";
+  const domainParts = cleanDomain.split(".");
+  const tld = domainParts.pop() ?? "";
+  const domainName = domainParts.join(".");
 
+  // 1. TLD Validation
   if (!isValidTld(tld)) {
     return { allowed: false, reason: "Invalid domain extension (TLD)" };
   }
 
+  // 2. Suspicious Characters Check
+  if (localPart.includes("#") || localPart.includes("$") || localPart.includes("%")) {
+    return { allowed: false, reason: "Suspicious characters in email" };
+  }
+
+  // 3. Relay/Forwarding Check
   if (isForwardingEmail(cleanDomain)) {
     return { allowed: false, reason: "Email relay services are not allowed" };
   }
 
+  // 4. Disposable Check
   if (isDisposableDomain(cleanDomain)) {
     return { allowed: false, reason: "Disposable email addresses are not allowed" };
   }
 
-  if (isGibberish(localPart || "")) {
+  // 5. Gibberish Local Part Check
+  if (isGibberish(localPart)) {
     return { allowed: false, reason: "Suspicious email pattern detected" };
+  }
+
+  // 6. Gibberish Domain Check
+  if (domainName.length >= 5 && isGibberish(domainName)) {
+    return { allowed: false, reason: "Suspicious domain name detected" };
   }
 
   return { allowed: true };
@@ -168,6 +311,18 @@ export function isForwardingEmail(domain: string): boolean {
   return FORWARDING_PROVIDERS.has(domain.toLowerCase());
 }
 
+/**
+ * 🧠 Brain: Detects relay services by fingerprinting their MX servers.
+ * This catches custom domains that are routed through services like SimpleLogin.
+ */
+export function isForwardingMx(mxRecords: string[]): boolean {
+  if (!mxRecords || mxRecords.length === 0) return false;
+  return mxRecords.some(mx => {
+    const lowerMx = mx.toLowerCase();
+    return RELAY_MX_SUFFIXES.some(suffix => lowerMx.endsWith(suffix));
+  });
+}
+
 export function computeReputationScore(checks: ReputationChecks): number {
   let score = 100;
 
@@ -176,16 +331,16 @@ export function computeReputationScore(checks: ReputationChecks): number {
   if (checks.isForwarding) score -= 30;
   if (checks.hasMx === false) score -= 25;
   if (checks.hasInbox === false) score -= 15;
-  
+
   if (checks.isDeliverable === false) score -= 40;
   if (checks.isCatchAll === true) score -= 20;
   if (checks.canConnect === false) score -= 20;
   if (checks.isAdmin || checks.roleAccount) score -= 10;
-  
+
   if (checks.isFree || FREE_EMAIL_PROVIDERS.has(checks.domain.toLowerCase())) {
-     score -= 5;
+    score -= 5;
   }
-  
+
   if (checks.dnsblHit === true) score -= 20;
   if (checks.smtpValid === false) score -= 10;
 
@@ -275,7 +430,7 @@ async function runSmtpProbe(
       if (resolved) return;
       resolved = true;
       clearTimeout(timer);
-      try { socket.destroy(); } catch {}
+      try { socket.destroy(); } catch { }
       resolve({ result });
     };
 

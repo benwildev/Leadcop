@@ -100,10 +100,17 @@ router.get("/dashboard", requireAuth, async (req, res) => {
     usageByDay: usageByDay.map((u: any) => ({ date: u.date, count: Number(u.count) })),
     planConfig: {
       websiteLimit: planConfig.websiteLimit,
-      pageLimit: planConfig.pageLimit,
-      mxDetectionEnabled: planConfig.mxDetectionEnabled,
-      inboxCheckEnabled: planConfig.inboxCheckEnabled,
-      maxBulkEmails: planConfig.maxBulkEmails,
+      dataLimit: planConfig.dataLimit,
+      maxApiKeys: planConfig.maxApiKeys,
+      maxUsers: planConfig.maxUsers,
+      logRetentionDays: planConfig.logRetentionDays,
+      rateLimitPerSecond: planConfig.rateLimitPerSecond,
+      hasBulkValidation: planConfig.hasBulkValidation,
+      bulkEmailLimit: planConfig.bulkEmailLimit,
+      hasWebhooks: planConfig.hasWebhooks,
+      hasCustomBlocklist: planConfig.hasCustomBlocklist,
+      hasAdvancedAnalytics: planConfig.hasAdvancedAnalytics,
+      requestLimit: planConfig.requestLimit,
     },
     counts: {
       namedApiKeys: Number(keyCount),
@@ -241,8 +248,8 @@ router.delete("/api-keys/:id", requireAuth, async (req: any, res: any) => {
 // ─── Webhooks ─────────────────────────────────────────────────────────────────
 
 router.get("/webhooks", requireAuth, async (req, res) => {
-  const plan = req.userPlan ?? "FREE";
-  const canCreate = plan === "PRO";
+  const planConfig = await getPlanConfig(req.userPlan ?? "FREE");
+  const canCreate = planConfig.hasWebhooks;
 
   if (!canCreate) {
     res.json({ webhooks: [], total: 0, canCreate: false, planRequired: "PRO" });
@@ -276,8 +283,8 @@ const createWebhookSchema = z.object({
 });
 
 router.post("/webhooks", requireAuth, async (req, res) => {
-  const plan = req.userPlan ?? "FREE";
-  if (plan !== "PRO") {
+  const planConfig = await getPlanConfig(req.userPlan ?? "FREE");
+  if (!planConfig.hasWebhooks) {
     res.status(403).json({
       error: "Webhooks (Custom Integrations) are a PRO plan feature. Please upgrade to unlock.",
       planRequired: "PRO",
@@ -409,8 +416,8 @@ const addBlocklistSchema = z.object({
 });
 
 router.post("/blocklist", requireAuth, async (req, res) => {
-  const plan = req.userPlan ?? "FREE";
-  if (plan === "FREE") {
+  const planConfig = await getPlanConfig(req.userPlan ?? "FREE");
+  if (!planConfig.hasCustomBlocklist) {
     res.status(403).json({
       error: "Custom blocklists are not available on the FREE plan. Upgrade to BASIC or PRO to manage your blocklist.",
       planRequired: "BASIC",
@@ -475,6 +482,10 @@ router.delete("/blocklist/:id", requireAuth, async (req: any, res: any) => {
 // ─── Usage / Audit Log ────────────────────────────────────────────────────────
 
 router.get("/usage", requireAuth, async (req, res) => {
+  const planConfig = await getPlanConfig(req.userPlan ?? "FREE");
+  const retentionCondition = planConfig.logRetentionDays === -1
+    ? undefined
+    : sql`${apiUsageTable.timestamp} >= NOW() - INTERVAL '${planConfig.logRetentionDays} days'`;
   const entries = await db
     .select({
       id: apiUsageTable.id,
@@ -487,7 +498,12 @@ router.get("/usage", requireAuth, async (req, res) => {
       timestamp: apiUsageTable.timestamp,
     })
     .from(apiUsageTable)
-    .where(eq(apiUsageTable.userId, req.userId!))
+    .where(
+      and(
+        eq(apiUsageTable.userId, req.userId!),
+        retentionCondition
+      )
+    )
     .orderBy(desc(apiUsageTable.timestamp))
     .limit(100);
 
@@ -504,10 +520,20 @@ router.get("/audit-log", requireAuth, async (req, res) => {
   const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit ?? "50"))));
   const offset = (page - 1) * limit;
 
+  const planConfig = await getPlanConfig(req.userPlan ?? "FREE");
+  const retentionCondition = planConfig.logRetentionDays === -1
+    ? undefined
+    : sql`${apiUsageTable.timestamp} >= NOW() - INTERVAL '${planConfig.logRetentionDays} days'`;
+
   const [{ total }] = await db
     .select({ total: sql<number>`COUNT(*)::int` })
     .from(apiUsageTable)
-    .where(eq(apiUsageTable.userId, req.userId!));
+    .where(
+      and(
+        eq(apiUsageTable.userId, req.userId!),
+        retentionCondition
+      )
+    );
 
   const entries = await db
     .select({
@@ -521,7 +547,12 @@ router.get("/audit-log", requireAuth, async (req, res) => {
       timestamp: apiUsageTable.timestamp,
     })
     .from(apiUsageTable)
-    .where(eq(apiUsageTable.userId, req.userId!))
+    .where(
+      and(
+        eq(apiUsageTable.userId, req.userId!),
+        retentionCondition
+      )
+    )
     .orderBy(desc(apiUsageTable.timestamp))
     .limit(limit)
     .offset(offset);
@@ -532,23 +563,17 @@ router.get("/audit-log", requireAuth, async (req, res) => {
     limit,
     total: Number(total),
     totalPages: Math.ceil(Number(total) / limit),
+    isLimited: planConfig.logRetentionDays !== -1,
+    retentionDays: planConfig.logRetentionDays,
   });
 });
 
 // ─── Analytics ────────────────────────────────────────────────────────────────
 
 router.get("/analytics", requireAuth, async (req, res) => {
-  const plan = req.userPlan ?? "FREE";
+  const planConfig = await getPlanConfig(req.userPlan ?? "FREE");
 
-  if (plan === "FREE") {
-    res.status(403).json({
-      error: "Advanced analytics is a PRO plan feature. Upgrade to unlock full insights.",
-      planRequired: "PRO",
-    });
-    return;
-  }
-
-  // Daily call counts — last 30 days (BASIC + PRO)
+  // Daily call counts — last 30 days
   const dailyCalls = await db
     .select({
       date: sql<string>`DATE(${apiUsageTable.timestamp})::text`,
@@ -575,7 +600,7 @@ router.get("/analytics", requireAuth, async (req, res) => {
       )
     );
 
-  if (plan === "BASIC") {
+  if (!planConfig.hasAdvancedAnalytics) {
     res.json({
       dailyCalls: dailyCalls.map((d: any) => ({ date: d.date, count: Number(d.count) })),
       monthTotal: Number(monthTotal),
@@ -819,13 +844,15 @@ router.post("/pages", requireAuth, async (req, res) => {
     .from(userPagesTable)
     .where(eq(userPagesTable.userId, req.userId!));
 
-  if (planConfig.pageLimit === 0) {
-    res.status(403).json({ error: "Page tracking is not available on your current plan. Please upgrade." });
+  if ((planConfig as any).dataLimit === 0 && user.plan !== "PRO" && user.plan !== "ENTERPRISE") {
+    res.status(403).json({
+      error: "Page tracking is not available on your current plan. Please upgrade.",
+    });
     return;
   }
-  if (Number(pageCount) >= planConfig.pageLimit) {
+  if (Number(pageCount) >= ((planConfig as any).dataLimit || 100)) {
     res.status(429).json({
-      error: `Page limit reached (${planConfig.pageLimit}). Please upgrade your plan.`,
+      error: `Page limit reached (${(planConfig as any).dataLimit || 100}). Please upgrade your plan.`,
     });
     return;
   }

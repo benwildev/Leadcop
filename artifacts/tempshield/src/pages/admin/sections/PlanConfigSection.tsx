@@ -11,18 +11,23 @@ import { Shield, Zap, Lock, Plus, Check, Loader2, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { SectionHeader, GlassCard, ActionButton } from "@/components/shared";
 
-const BUILT_IN_PLANS = ["FREE", "BASIC", "PRO", "MAX"];
+const BUILT_IN_PLANS = ["FREE", "PRO", "ENTERPRISE"];
 
 const DEFAULT_NEW_PLAN = {
   requestLimit: 1000,
-  mxDetectLimit: 100,
-  inboxCheckLimit: 100,
+  dataLimit: 0,
   websiteLimit: 1,
-  pageLimit: 1000,
-  maxBulkEmails: 100,
-  mxDetectionEnabled: true,
-  inboxCheckEnabled: true,
   price: 19,
+  maxApiKeys: 1,
+  description: "",
+  features: [] as string[],
+  hasBulkValidation: false,
+  bulkEmailLimit: 0,
+  hasWebhooks: false,
+  hasCustomBlocklist: false,
+  hasAdvancedAnalytics: false,
+  maxUsers: 1,
+  logRetentionDays: 7,
 };
 
 export function PlanConfigSection() {
@@ -43,7 +48,12 @@ export function PlanConfigSection() {
   const [newPlan, setNewPlan] = useState({ plan: "", ...DEFAULT_NEW_PLAN });
   const [createError, setCreateError] = useState("");
 
-  const configs = configQuery.data?.configs || [];
+  const PLAN_ORDER = ["FREE", "BASIC", "PRO", "MAX", "ENTERPRISE"];
+  const configs = (configQuery.data?.configs || []).slice().sort((a, b) => {
+    const idxA = PLAN_ORDER.indexOf(a.plan);
+    const idxB = PLAN_ORDER.indexOf(b.plan);
+    return (idxA === -1 ? 99 : idxA) - (idxB === -1 ? 99 : idxB);
+  });
 
   const getValue = <K extends keyof PlanConfig>(
     plan: string,
@@ -57,15 +67,23 @@ export function PlanConfigSection() {
 
   const setValue = (
     plan: string,
-    field: keyof Partial<PlanConfig>,
-    value: number | boolean,
+    field: keyof Partial<PlanConfig> | "featuresString",
+    value: any,
   ) => {
     setEditValues((p) => ({ ...p, [plan]: { ...p[plan], [field]: value } }));
   };
 
   const handleSave = async (plan: string) => {
-    const updates = editValues[plan];
-    if (!updates || Object.keys(updates).length === 0) return;
+    const edits = editValues[plan] as any;
+    if (!edits || Object.keys(edits).length === 0) return;
+    
+    // Convert featuresString back to array if present
+    const updates: any = { ...edits };
+    if (updates.featuresString !== undefined) {
+      updates.features = updates.featuresString.split(",").map((s: string) => s.trim()).filter(Boolean);
+      delete updates.featuresString;
+    }
+
     setSaving((p) => ({ ...p, [plan]: true }));
     try {
       await updateMutation.mutateAsync({ plan, data: updates });
@@ -122,23 +140,26 @@ export function PlanConfigSection() {
     { label: string; color: string; icon: React.ElementType }
   > = {
     FREE: { label: "Free", color: "text-muted-foreground", icon: Shield },
-    BASIC: { label: "Basic", color: "text-blue-400", icon: Zap },
     PRO: { label: "Pro", color: "text-primary", icon: Lock },
-    MAX: { label: "Max", color: "text-orange-400", icon: Shield },
+    ENTERPRISE: { label: "Enterprise", color: "text-orange-400", icon: Zap },
   };
 
   const numFields = [
+    { key: "price" as const, label: "Price (USD/mo)" },
     { key: "requestLimit" as const, label: "Request Limit" },
-    { key: "mxDetectLimit" as const, label: "MX Detection Limit" },
-    { key: "inboxCheckLimit" as const, label: "Inbox Check Limit" },
+    { key: "dataLimit" as const, label: "Data Limit" },
     { key: "websiteLimit" as const, label: "Website Limit" },
-    { key: "pageLimit" as const, label: "Page Limit" },
-    { key: "maxBulkEmails" as const, label: "Max Bulk Emails" },
+    { key: "maxApiKeys" as const, label: "Max API Keys" },
+    { key: "maxUsers" as const, label: "Max Seats (-1 is Unlimited)" },
+    { key: "logRetentionDays" as const, label: "Log Retention Days (-1 is Unlimited)" },
+    { key: "bulkEmailLimit" as const, label: "Bulk Email Limit (-1 Unlimited, 0 Disabled)" },
   ];
 
   const boolFields = [
-    { key: "mxDetectionEnabled" as const, label: "MX Detection" },
-    { key: "inboxCheckEnabled" as const, label: "Inbox Check" },
+    { key: "hasBulkValidation" as const, label: "Bulk Validation Enabled" },
+    { key: "hasWebhooks" as const, label: "Webhooks Enabled" },
+    { key: "hasCustomBlocklist" as const, label: "Custom Blocklist Enabled" },
+    { key: "hasAdvancedAnalytics" as const, label: "Advanced Analytics Enabled" },
   ];
 
   return (
@@ -190,26 +211,29 @@ export function PlanConfigSection() {
                   className="w-full bg-muted/40 border border-border rounded-lg px-3 py-1.5 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all font-mono"
                 />
               </div>
-              <div>
+              <div className="sm:col-span-2">
                 <label className="text-xs text-muted-foreground block mb-1">
-                  Price (USD/mo)
+                  Description
                 </label>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-muted-foreground text-sm">$</span>
-                  <input
-                    type="number"
-                    min={0}
-                    step={0.01}
-                    value={newPlan.price}
-                    onChange={(e) =>
-                      setNewPlan((p) => ({
-                        ...p,
-                        price: parseFloat(e.target.value) || 0,
-                      }))
-                    }
-                    className="w-full bg-muted/40 border border-border rounded-lg px-3 py-1.5 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all"
-                  />
-                </div>
+                <input
+                  type="text"
+                  value={newPlan.description}
+                  onChange={(e) => setNewPlan((p) => ({ ...p, description: e.target.value }))}
+                  placeholder="Plan tagline"
+                  className="w-full bg-muted/40 border border-border rounded-lg px-3 py-1.5 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="text-xs text-muted-foreground block mb-1">
+                  Features (comma separated)
+                </label>
+                <textarea
+                  value={newPlan.features.join(", ")}
+                  onChange={(e) => setNewPlan((p) => ({ ...p, features: e.target.value.split(",").map(s => s.trim()).filter(Boolean) }))}
+                  placeholder="Feature 1, Feature 2..."
+                  rows={2}
+                  className="w-full bg-muted/40 border border-border rounded-lg px-3 py-1.5 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all resize-none"
+                />
               </div>
               {numFields.map(({ key, label }) => (
                 <div key={key}>
@@ -218,33 +242,38 @@ export function PlanConfigSection() {
                   </label>
                   <input
                     type="number"
-                    value={newPlan[key]}
+                    step={key === "price" ? 0.01 : 1}
+                    value={(newPlan as any)[key]}
                     onChange={(e) =>
                       setNewPlan((p) => ({
                         ...p,
-                        [key]: parseInt(e.target.value) || 0,
+                        [key]: key === "price" ? parseFloat(e.target.value) || 0 : parseInt(e.target.value) || 0,
                       }))
                     }
                     className="w-full bg-muted/40 border border-border rounded-lg px-3 py-1.5 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all"
                   />
                 </div>
               ))}
-              {boolFields.map(({ key, label }) => (
-                <div key={key} className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">{label}</span>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setNewPlan((p) => ({ ...p, [key]: !p[key] }))
-                    }
-                    className={`relative inline-flex h-5 w-9 rounded-full transition-colors ${newPlan[key] ? "bg-primary" : "bg-border"}`}
-                  >
-                    <span
-                      className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white transition-transform ${newPlan[key] ? "translate-x-4" : ""}`}
+              
+              <div className="sm:col-span-2 grid grid-cols-2 gap-4 mt-2">
+                {boolFields.map(({ key, label }) => (
+                  <label key={key} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={!!(newPlan as any)[key]}
+                      onChange={(e) =>
+                        setNewPlan((p) => ({
+                          ...p,
+                          [key]: e.target.checked,
+                        }))
+                      }
+                      className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
                     />
-                  </button>
-                </div>
-              ))}
+                    <span className="text-sm text-foreground">{label}</span>
+                  </label>
+                ))}
+              </div>
+
             </div>
             {createError && (
               <p className="text-xs text-red-400 mt-3">{createError}</p>
@@ -329,25 +358,27 @@ export function PlanConfigSection() {
                 <div className="space-y-3 text-sm">
                   <div>
                     <label className="text-xs text-muted-foreground block mb-1">
-                      Price (USD/mo)
+                      Description
                     </label>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-muted-foreground text-sm">$</span>
-                      <input
-                        type="number"
-                        min={0}
-                        step={0.01}
-                        value={getValue(cfg.plan, "price", cfg.price) as number}
-                        onChange={(e) =>
-                          setValue(
-                            cfg.plan,
-                            "price",
-                            parseFloat(e.target.value) || 0,
-                          )
-                        }
-                        className="w-full bg-muted/40 border border-border rounded-lg px-3 py-1.5 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all"
-                      />
-                    </div>
+                    <input
+                      type="text"
+                      value={getValue(cfg.plan, "description", cfg.description ?? "") as string}
+                      onChange={(e) => setValue(cfg.plan, "description", e.target.value)}
+                      placeholder="Pricing plan tagline"
+                      className="w-full bg-muted/40 border border-border rounded-lg px-3 py-1.5 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground block mb-1">
+                      Features (comma separated)
+                    </label>
+                    <textarea
+                      value={(editValues[cfg.plan] as any)?.featuresString ?? (cfg.features || []).join(", ")}
+                      onChange={(e) => setValue(cfg.plan, "featuresString", e.target.value)}
+                      placeholder="1,000 credits, Multiple keys, ..."
+                      rows={3}
+                      className="w-full bg-muted/40 border border-border rounded-lg px-3 py-1.5 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all resize-none"
+                    />
                   </div>
                   {numFields.map(({ key, label }) => {
                     const numVal = getValue(cfg.plan, key, cfg[key]) as number;
@@ -358,12 +389,13 @@ export function PlanConfigSection() {
                         </label>
                         <input
                           type="number"
+                          step={key === "price" ? 0.01 : 1}
                           value={numVal}
                           onChange={(e) =>
                             setValue(
                               cfg.plan,
                               key,
-                              parseInt(e.target.value) || 0,
+                              key === "price" ? parseFloat(e.target.value) || 0 : parseInt(e.target.value) || 0,
                             )
                           }
                           className="w-full bg-muted/40 border border-border rounded-lg px-3 py-1.5 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all"
@@ -371,31 +403,24 @@ export function PlanConfigSection() {
                       </div>
                     );
                   })}
-                  {boolFields.map(({ key, label }) => {
-                    const boolVal = getValue(
-                      cfg.plan,
-                      key,
-                      cfg[key],
-                    ) as boolean;
-                    return (
-                      <div
-                        key={key}
-                        className="flex items-center justify-between"
-                      >
-                        <span className="text-xs text-muted-foreground">
-                          {label}
-                        </span>
-                        <button
-                          onClick={() => setValue(cfg.plan, key, !boolVal)}
-                          className={`relative inline-flex h-5 w-9 rounded-full transition-colors ${boolVal ? "bg-primary" : "bg-border"}`}
-                        >
-                          <span
-                            className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white transition-transform ${boolVal ? "translate-x-4" : ""}`}
+
+                  <div className="pt-2 border-t border-border mt-3 space-y-2">
+                    {boolFields.map(({ key, label }) => {
+                      const boolVal = getValue(cfg.plan, key as any, (cfg as any)[key]) as boolean;
+                      return (
+                        <label key={key} className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={!!boolVal}
+                            onChange={(e) => setValue(cfg.plan, key as any, e.target.checked)}
+                            className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
                           />
-                        </button>
-                      </div>
-                    );
-                  })}
+                          <span className="text-xs text-foreground font-medium">{label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+
                 </div>
                 <button
                   onClick={() => handleSave(cfg.plan)}

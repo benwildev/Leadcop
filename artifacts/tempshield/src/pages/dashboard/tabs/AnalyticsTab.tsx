@@ -14,7 +14,8 @@ import {
 
 export default function AnalyticsTab({ data, usagePct }: { data: DashboardDataWithPlanConfig; usagePct: number }) {
   const plan = data.user.plan;
-  const { data: analytics, isLoading } = useGetUserAnalytics({ enabled: plan !== "FREE" });
+  const hasAnalytics = data.planConfig.hasAdvancedAnalytics;
+  const { data: analytics, isLoading } = useGetUserAnalytics({ enabled: hasAnalytics });
 
   const requestsRemaining = data.user.requestLimit - data.user.requestCount;
 
@@ -45,7 +46,7 @@ export default function AnalyticsTab({ data, usagePct }: { data: DashboardDataWi
     </motion.div>
   );
 
-  if (plan === "FREE") {
+  if (!hasAnalytics) {
     return (
       <div className="space-y-6">
         {quotaGauge}

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Globe, FileText, Shield, Download, Plus, X, Loader2, CheckCircle2 } from "lucide-react";
+import { Globe, FileText, Shield, Download, Plus, X, Loader2, CheckCircle2, Code, Copy } from "lucide-react";
 import { motion } from "framer-motion";
 import { Link } from "wouter";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
@@ -109,7 +109,7 @@ function PagesPanel({ planConfig, plan }: { planConfig?: DashboardPlanConfig; pl
   const [error, setError] = useState("");
 
   const pages = pagesQuery.data?.pages || [];
-  const limit = planConfig?.pageLimit ?? 0;
+  const limit = (planConfig as any)?.dataLimit ?? 0;
 
   const handleAdd = async () => {
     if (!input.trim()) return;
@@ -265,9 +265,46 @@ function FreeEmailCheckPanel() {
   );
 }
 
-function WordPressPluginPanel() {
+function EmbedScriptPanel({ apiKey }: { apiKey?: string }) {
+  const [copied, setCopied] = React.useState(false);
+  const origin = typeof window !== "undefined" ? window.location.origin : "https://leadcop.io";
+  const scriptTag = `<script src="${origin}/temp-email-validator.js" data-api-key="${apiKey ?? 'YOUR_API_KEY'}"></script>`;
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(scriptTag);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+      <GlassCard>
+        <div className="flex items-center gap-2 mb-1">
+          <Code className="h-4 w-4 text-primary" />
+          <h2 className="font-heading text-base font-semibold text-foreground">Embed Script</h2>
+        </div>
+        <p className="text-xs text-muted-foreground mb-4">
+          Drop this snippet into your HTML to enable client-side disposable email detection on your forms.
+        </p>
+        <div className="flex gap-2 items-start">
+          <pre className="flex-1 rounded-xl bg-muted/50 border border-border px-4 py-3 font-mono text-xs text-foreground/80 overflow-x-auto whitespace-pre-wrap break-all">
+            {scriptTag}
+          </pre>
+          <button
+            onClick={handleCopy}
+            className="flex-shrink-0 p-3 rounded-xl border border-border bg-muted/30 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+          >
+            {copied ? <CheckCircle2 className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+          </button>
+        </div>
+      </GlassCard>
+    </motion.div>
+  );
+}
+
+function WordPressPluginPanel() {
+  return (
+    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
       <GlassCard>
         <div className="flex items-center gap-2 mb-1">
           <Download className="h-4 w-4 text-primary" />
@@ -314,12 +351,13 @@ function WordPressPluginPanel() {
   );
 }
 
-export default function SettingsTab({ planConfig, plan }: { planConfig?: DashboardPlanConfig; plan: string }) {
+export default function SettingsTab({ planConfig, plan, apiKey }: { planConfig?: DashboardPlanConfig; plan: string; apiKey?: string }) {
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       <WebsitesPanel planConfig={planConfig} plan={plan} />
       <PagesPanel planConfig={planConfig} plan={plan} />
       <FreeEmailCheckPanel />
+      <EmbedScriptPanel apiKey={apiKey} />
       <WordPressPluginPanel />
     </div>
   );

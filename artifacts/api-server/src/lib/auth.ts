@@ -16,11 +16,9 @@ export function generateApiKey(): string {
 }
 
 export function getRequestLimit(plan: string): number {
-  switch (plan) {
-    case "BASIC": return 1000;
-    case "PRO": return 10000;
-    default: return 10;
-  }
+  // 🧠 Brain: We now rely on the database configuration. 
+  // This fallback is only used for temporary local sessions or legacy code.
+  return 100;
 }
 
 export async function getPlanConfig(plan: string) {
@@ -31,23 +29,28 @@ export async function getPlanConfig(plan: string) {
     .limit(1);
 
   if (!config) {
+    // Fallback for plans not yet configured in the DB — should not happen in production.
+    // All values here are conservative defaults.
     return {
       plan,
-      requestLimit: getRequestLimit(plan),
-      mxDetectLimit: 0,
-      inboxCheckLimit: 0,
+      requestLimit: 100,
+      dataLimit: 0,
       websiteLimit: 0,
-      pageLimit: 0,
-      maxBulkEmails: 0,
-      mxDetectionEnabled: false,
-      inboxCheckEnabled: false,
-      rateLimitPerSecond: plan === "PRO" ? 5 : 1,
-      hasUserCheckGates: plan === "PRO",
+      price: 0,
+      rateLimitPerSecond: 1,
+      maxUsers: 1,
+      logRetentionDays: 7,
+      hasBulkValidation: false,
+      bulkEmailLimit: 0,
+      hasWebhooks: false,
+      hasCustomBlocklist: false,
+      hasAdvancedAnalytics: false,
+      maxApiKeys: 1,
+      description: null,
+      features: [],
     };
   }
-  return {
-    ...config,
-    rateLimitPerSecond: plan === "PRO" ? 5 : 1,
-    hasUserCheckGates: plan === "PRO",
-  };
+
+  // Return the DB config as-is — no overrides. The admin controls everything.
+  return config;
 }

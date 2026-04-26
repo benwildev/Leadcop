@@ -9,14 +9,20 @@ export interface PlanConfig {
   id: number;
   plan: string;
   requestLimit: number;
-  mxDetectLimit: number;
-  inboxCheckLimit: number;
+  dataLimit: number;
   websiteLimit: number;
-  pageLimit: number;
-  maxBulkEmails: number;
-  mxDetectionEnabled: boolean;
-  inboxCheckEnabled: boolean;
   price: number;
+  rateLimitPerSecond: number;
+  maxApiKeys: number;
+  maxUsers: number;
+  logRetentionDays: number;
+  hasBulkValidation: boolean;
+  bulkEmailLimit: number;
+  hasWebhooks: boolean;
+  hasCustomBlocklist: boolean;
+  hasAdvancedAnalytics: boolean;
+  description: string | null;
+  features: string[];
 }
 
 export interface PlanConfigsResponse {
@@ -25,27 +31,39 @@ export interface PlanConfigsResponse {
 
 export interface UpdatePlanConfigBody {
   requestLimit?: number;
-  mxDetectLimit?: number;
-  inboxCheckLimit?: number;
+  dataLimit?: number;
   websiteLimit?: number;
-  pageLimit?: number;
-  maxBulkEmails?: number;
-  mxDetectionEnabled?: boolean;
-  inboxCheckEnabled?: boolean;
   price?: number;
+  rateLimitPerSecond?: number;
+  maxApiKeys?: number;
+  maxUsers?: number;
+  logRetentionDays?: number;
+  hasBulkValidation?: boolean;
+  bulkEmailLimit?: number;
+  hasWebhooks?: boolean;
+  hasCustomBlocklist?: boolean;
+  hasAdvancedAnalytics?: boolean;
+  description?: string;
+  features?: string[];
 }
 
 export interface CreatePlanConfigBody {
   plan: string;
   requestLimit?: number;
-  mxDetectLimit?: number;
-  inboxCheckLimit?: number;
+  dataLimit?: number;
   websiteLimit?: number;
-  pageLimit?: number;
-  maxBulkEmails?: number;
-  mxDetectionEnabled?: boolean;
-  inboxCheckEnabled?: boolean;
   price?: number;
+  rateLimitPerSecond?: number;
+  maxApiKeys?: number;
+  maxUsers?: number;
+  logRetentionDays?: number;
+  hasBulkValidation?: boolean;
+  bulkEmailLimit?: number;
+  hasWebhooks?: boolean;
+  hasCustomBlocklist?: boolean;
+  hasAdvancedAnalytics?: boolean;
+  description?: string;
+  features?: string[];
 }
 
 // ─── Admin: Users ─────────────────────────────────────────────────────────────
@@ -117,10 +135,17 @@ export interface UserPagesResponse {
 
 export interface DashboardPlanConfig {
   websiteLimit: number;
-  pageLimit: number;
-  mxDetectionEnabled: boolean;
-  inboxCheckEnabled: boolean;
-  maxBulkEmails: number;
+  dataLimit: number;
+  maxApiKeys: number;
+  maxUsers: number;
+  logRetentionDays: number;
+  rateLimitPerSecond: number;
+  hasBulkValidation: boolean;
+  bulkEmailLimit: number;
+  hasWebhooks: boolean;
+  hasCustomBlocklist: boolean;
+  hasAdvancedAnalytics: boolean;
+  requestLimit: number;
 }
 
 export interface DashboardCounts {
@@ -201,7 +226,6 @@ export interface BulkCheckResult {
   domain?: string;
   reputationScore?: number;
   mxValid?: boolean;
-  inboxSupport?: boolean;
   error?: string;
 }
 

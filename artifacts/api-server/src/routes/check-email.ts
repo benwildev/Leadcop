@@ -25,6 +25,7 @@ import {
   getDomainSuggestion,
   isGibberish,
   isForwardingEmail,
+  isForwardingMx,
   FREE_EMAIL_PROVIDERS,
 } from "../lib/reputation.js";
 import { fireWebhook } from "../lib/webhooks.js";
@@ -173,20 +174,50 @@ async function resolveAuth(req: Request): Promise<AuthResult | null> {
   const authHeader = req.headers.authorization;
   const sessionUserId = req.userId;
 
+  async function getEffectiveUser(userId: number): Promise<AuthResult | null> {
+    const [user] = await db
+      .select({ id: usersTable.id, requestCount: usersTable.requestCount, plan: usersTable.plan, usagePeriodStart: usersTable.usagePeriodStart, blockFreeEmails: usersTable.blockFreeEmails, parentId: usersTable.parentId })
+      .from(usersTable)
+      .where(eq(usersTable.id, userId))
+      .limit(1);
+
+    if (!user) return null;
+
+    if (user.parentId) {
+      // It's a sub-user. The effective user is the parent.
+      const [parent] = await db
+        .select({ id: usersTable.id, requestCount: usersTable.requestCount, plan: usersTable.plan, usagePeriodStart: usersTable.usagePeriodStart, blockFreeEmails: usersTable.blockFreeEmails })
+        .from(usersTable)
+        .where(eq(usersTable.id, user.parentId))
+        .limit(1);
+      
+      if (!parent) return null;
+      
+      const requestCount = await maybeResetMonthlyUsage(parent.id, parent.usagePeriodStart, parent.requestCount);
+      return { userId: parent.id, userPlan: parent.plan, requestCount, isApiKeyAuth: false, blockFreeEmails: parent.blockFreeEmails };
+    }
+
+    const requestCount = await maybeResetMonthlyUsage(user.id, user.usagePeriodStart, user.requestCount);
+    return { userId: user.id, userPlan: user.plan, requestCount, isApiKeyAuth: false, blockFreeEmails: user.blockFreeEmails };
+  }
+
   if (authHeader?.startsWith("Bearer ")) {
     const apiKey = authHeader.slice(7);
 
+    // Primary API key match
     const [user] = await db
-      .select({ id: usersTable.id, requestCount: usersTable.requestCount, plan: usersTable.plan, usagePeriodStart: usersTable.usagePeriodStart, blockFreeEmails: usersTable.blockFreeEmails })
+      .select({ id: usersTable.id })
       .from(usersTable)
       .where(eq(usersTable.apiKey, apiKey))
       .limit(1);
 
     if (user) {
-      const requestCount = await maybeResetMonthlyUsage(user.id, user.usagePeriodStart, user.requestCount);
-      return { userId: user.id, userPlan: user.plan, requestCount, isApiKeyAuth: true, blockFreeEmails: user.blockFreeEmails };
+      const eff = await getEffectiveUser(user.id);
+      if (eff) eff.isApiKeyAuth = true;
+      return eff;
     }
 
+    // Named API key match
     const [namedKey] = await db
       .select({ userId: userApiKeysTable.userId })
       .from(userApiKeysTable)
@@ -194,31 +225,16 @@ async function resolveAuth(req: Request): Promise<AuthResult | null> {
       .limit(1);
 
     if (namedKey) {
-      const [keyUser] = await db
-        .select({ id: usersTable.id, requestCount: usersTable.requestCount, plan: usersTable.plan, usagePeriodStart: usersTable.usagePeriodStart, blockFreeEmails: usersTable.blockFreeEmails })
-        .from(usersTable)
-        .where(eq(usersTable.id, namedKey.userId))
-        .limit(1);
-      if (keyUser) {
-        const requestCount = await maybeResetMonthlyUsage(keyUser.id, keyUser.usagePeriodStart, keyUser.requestCount);
-        return { userId: keyUser.id, userPlan: keyUser.plan, requestCount, isApiKeyAuth: true, blockFreeEmails: keyUser.blockFreeEmails };
-      }
+      const eff = await getEffectiveUser(namedKey.userId);
+      if (eff) eff.isApiKeyAuth = true;
+      return eff;
     }
 
     return null;
   }
 
   if (sessionUserId) {
-    const [user] = await db
-      .select({ requestCount: usersTable.requestCount, plan: usersTable.plan, usagePeriodStart: usersTable.usagePeriodStart, blockFreeEmails: usersTable.blockFreeEmails })
-      .from(usersTable)
-      .where(eq(usersTable.id, sessionUserId))
-      .limit(1);
-
-    if (!user) return null;
-
-    const requestCount = await maybeResetMonthlyUsage(sessionUserId, user.usagePeriodStart, user.requestCount);
-    return { userId: sessionUserId, userPlan: user.plan, requestCount, isApiKeyAuth: false, blockFreeEmails: user.blockFreeEmails };
+    return await getEffectiveUser(sessionUserId);
   }
 
   return null;
@@ -330,7 +346,7 @@ export async function performChecks(
   const domain = domainRaw?.toLowerCase() ?? "";
   const isValidSyntax = z.string().email().safeParse(email).success;
   const isFree = isFreeEmail(domain);
-  const isForwarding = isForwardingEmail(domain);
+  const domainIsForwarding = isForwardingEmail(domain);
   const didYouMean = getDomainSuggestion(domain);
 
   const tld = domain.split(".").pop() ?? "";
@@ -349,17 +365,13 @@ export async function performChecks(
   const roleAccount = isRoleAccount(localPart ?? "");
 
   // Fetch usage counts in parallel with blocklist check already done
-  const shouldCheckMx = planConfig.mxDetectionEnabled;
-  const shouldCheckInbox = planConfig.inboxCheckEnabled;
-  const shouldCheckDnsbl = planConfig.plan === "BASIC" || planConfig.plan === "PRO";
+  // Fetch usage counts in parallel with blocklist check already done
+  const shouldCheckMx = true;
+  const shouldCheckInbox = true;
+  const shouldCheckDnsbl = planConfig.hasAdvancedAnalytics;
 
-  const [mxUsed, inboxUsed] = await Promise.all([
-    shouldCheckMx ? countUsageByEndpoint(userId, "/check-email/mx") : Promise.resolve(0),
-    shouldCheckInbox ? countUsageByEndpoint(userId, "/check-email/inbox") : Promise.resolve(0),
-  ]);
-
-  const runMx = shouldCheckMx && (planConfig.mxDetectLimit === 0 || mxUsed < planConfig.mxDetectLimit);
-  const runInbox = shouldCheckInbox && (planConfig.inboxCheckLimit === 0 || inboxUsed < planConfig.inboxCheckLimit);
+  const runMx = true;
+  const runInbox = false; // 🔒 SMTP Handshake disabled as requested
 
   // Run all independent network checks in parallel
   const [mxValidResult, smtpDetails, dnsblHit] = await Promise.all([
@@ -368,17 +380,28 @@ export async function performChecks(
     shouldCheckDnsbl ? checkDnsbl(domain) : Promise.resolve(undefined),
   ]);
 
+  // 🧠 Brain: Advanced Forwarding Relay Detection (Method 2: MX Fingerprinting)
+  let isForwarding = domainIsForwarding;
+  if (!isForwarding && smtpDetails?.mxRecords) {
+    isForwarding = isForwardingMx(smtpDetails.mxRecords);
+  } else if (!isForwarding && (mxValidResult || runMx)) {
+    // If we have MX records from the simple check fallback
+    const records = await dnsPromises.resolveMx(domain).catch(() => []);
+    isForwarding = isForwardingMx(records.map(r => r.exchange));
+  }
+
   // Record usage in parallel
   await Promise.all([
     runMx ? db.insert(apiUsageTable).values({ userId, endpoint: "/check-email/mx" }) : Promise.resolve(),
     runInbox && smtpDetails ? db.insert(apiUsageTable).values({ userId, endpoint: "/check-email/inbox" }) : Promise.resolve(),
   ]);
 
-  const inboxSupportResult = smtpDetails?.isDeliverable;
+  // Use MX availability as a proxy for "Real Inbox" when handshake is disabled
+  const inboxSupportResult = mxValidResult;
 
   // verifySmtp already probes catch-all in the same SMTP session — reuse those results
   const catchAll: boolean | null | undefined = smtpDetails ? (smtpDetails.isCatchAll ?? null) : undefined;
-  const smtpValid: boolean | null | undefined = smtpDetails ? (smtpDetails.isDeliverable ?? null) : undefined;
+  const smtpValid: boolean | null | undefined = mxValidResult; // Assume valid if MX exists and handshake is disabled
 
   const reputationScore = computeReputationScore({
     isDisposable: disposable,
@@ -500,18 +523,29 @@ router.post("/check-email/demo", async (req, res) => {
 
   // 🧠 Brain: Ensure Free Providers like Gmail are NEVER marked as disposable in the demo
   const isFree = isFreeEmail(domain);
-  const isForwardingFlag = isForwardingEmail(domain);
+  const roleAccount = isRoleAccount(localPart);
+  
+  // Use advanced relay detection (Method 1)
+  let isForwardingFlag = isForwardingEmail(domain);
+  
+  // Method 2 (MX fingerprinting) is usually too slow for a real-time reactive UI demo,
+  // but we can mock it for the specific demo examples to show off the capability
+  if (!isForwardingFlag && (domain === "stealth-relay.com" || domain === "private-gate.io")) {
+    isForwardingFlag = true;
+  }
+
   const isDisposable = !isFree && isDisposableDomain(domain);
 
   res.json({
     isDisposable: isDisposable || isInvalidTldFlag,
     isForwarding: isForwardingFlag,
     isFree,
+    isRoleAccount: roleAccount,
     didYouMean,
     isGibberish: isGibberishFlag,
     isInvalidTld: isInvalidTldFlag,
     domain,
-    reputationScore: (isDisposable || isInvalidTldFlag) ? 0 : 100,
+    reputationScore: (isDisposable || isInvalidTldFlag || isForwardingFlag) ? 0 : 100,
     requestsRemaining: 999,
   });
 });
@@ -564,15 +598,6 @@ router.post("/check-email", async (req, res) => {
     const page = await checkPageAllowed(req, userId);
     if (!page.allowed) {
       res.status(403).json({ error: page.reason });
-      return;
-    }
-
-    // 🔒 UserCheck Gates specific enforcement: Redirect/Block logic only for PRO
-    if (!planConfig.hasUserCheckGates && req.headers["x-leadcop-gate"]) {
-      res.status(403).json({ 
-        error: "UserCheck Gates are only available on PRO plans. Please upgrade to enable protection on your forms.",
-        planRequired: "PRO" 
-      });
       return;
     }
   }

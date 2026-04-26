@@ -51,9 +51,13 @@ export function Navbar() {
   const { user, logout } = useAuth();
   const [location, navigate] = useLocation();
   const [mobileOpen, setMobileOpen] = React.useState(false);
-  const { isDark, toggle } = useTheme();
-  const siteSettings = useSiteSettings();
-  const [logoError, setLogoError] = React.useState(false);
+  const [scrolled, setScrolled] = React.useState(false);
+
+  React.useEffect(() => {
+    const handleScroll = () => setScrolled(window.scrollY > 20);
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   const scrollTo = (id: string) => {
     if (location === "/") {
@@ -69,56 +73,47 @@ export function Navbar() {
   };
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl">
+    <nav
+      className={`fixed top-0 left-0 right-0 z-50 border-b transition-all duration-300 ${
+        scrolled
+          ? "border-slate-200 bg-[rgba(250,250,249,0.92)] backdrop-blur"
+          : "border-transparent bg-white"
+      }`}
+    >
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
         {/* Logo */}
-        <Link
-          href="/"
-          className="flex items-center transition-opacity hover:opacity-80"
-        >
-          <Logo size={40} invert={true} />
+        <Link href="/" className="flex items-center transition-opacity hover:opacity-80">
+          <Logo size={34} />
         </Link>
 
         {/* Desktop Nav */}
-        <div className="hidden md:flex items-center gap-8">
+        <div className="hidden md:flex items-center gap-8 text-sm text-slate-500">
           <button
             onClick={() => scrollTo("features")}
-            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+            className="transition hover:text-slate-900"
           >
             Features
           </button>
           <button
             onClick={() => scrollTo("pricing")}
-            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+            className="transition hover:text-slate-900"
           >
             Pricing
           </button>
-          <Link
-            href="/docs"
-            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
+          <Link href="/docs" className="transition hover:text-slate-900">
             API Docs
           </Link>
-          <Link
-            href="/blog"
-            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
+          <Link href="/blog" className="transition hover:text-slate-900">
             Blog
           </Link>
           {user && (
-            <Link
-              href="/dashboard"
-              className="text-sm text-muted-foreground transition-colors hover:text-foreground flex items-center gap-1.5"
-            >
+            <Link href="/dashboard" className="transition hover:text-slate-900 flex items-center gap-1.5">
               <LayoutDashboard className="h-3.5 w-3.5" />
               Dashboard
             </Link>
           )}
           {user?.role === "ADMIN" && (
-            <Link
-              href="/admin"
-              className="text-sm text-muted-foreground transition-colors hover:text-foreground flex items-center gap-1.5"
-            >
+            <Link href="/admin" className="transition hover:text-slate-900 flex items-center gap-1.5">
               <Settings className="h-3.5 w-3.5" />
               Admin
             </Link>
@@ -126,25 +121,13 @@ export function Navbar() {
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={toggle}
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-border/50 text-muted-foreground transition-colors hover:text-foreground hover:bg-muted"
-            aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-          >
-            {isDark ? (
-              <Sun className="h-4 w-4" />
-            ) : (
-              <Moon className="h-4 w-4" />
-            )}
-          </button>
-
+        <div className="flex items-center gap-3">
           {user ? (
             <button
               onClick={logout}
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-border/50 text-muted-foreground transition-colors hover:text-destructive hover:bg-muted"
-              aria-label="Log out"
               title="Log out"
+              aria-label="Log out"
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-400 transition hover:text-slate-900 hover:border-slate-300"
             >
               <LogOut className="h-4 w-4" />
             </button>
@@ -152,31 +135,26 @@ export function Navbar() {
             <>
               <Link
                 href="/login"
-                className="hidden md:inline-flex h-9 items-center px-4 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+                className="hidden md:block text-sm text-slate-500 transition hover:text-slate-900"
               >
                 Log in
               </Link>
               <Link
                 href="/signup"
-                className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+                className="inline-flex h-10 items-center justify-center rounded-full bg-slate-950 px-5 text-sm font-medium text-white transition hover:bg-slate-800"
               >
-                Get Started
+                Start free
               </Link>
             </>
           )}
 
+          {/* Mobile toggle */}
           <button
-            className="md:hidden flex h-9 w-9 items-center justify-center rounded-lg border border-border/50 text-muted-foreground"
+            className="md:hidden flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-500"
             onClick={() => setMobileOpen(!mobileOpen)}
-            aria-label={mobileOpen ? "Close navigation menu" : "Open navigation menu"}
-            aria-expanded={mobileOpen}
-            aria-controls="mobile-nav"
+            aria-label={mobileOpen ? "Close menu" : "Open menu"}
           >
-            {mobileOpen ? (
-              <X className="h-4 w-4" />
-            ) : (
-              <Menu className="h-4 w-4" />
-            )}
+            {mobileOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
           </button>
         </div>
       </div>
@@ -189,82 +167,25 @@ export function Navbar() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            className="md:hidden border-t border-border/50 bg-background/95 backdrop-blur-xl"
+            className="md:hidden border-t border-slate-100 bg-white"
           >
-            <div className="px-6 py-4 flex flex-col gap-4">
-              <button
-                onClick={() => {
-                  scrollTo("features");
-                  setMobileOpen(false);
-                }}
-                className="text-sm font-medium text-muted-foreground hover:text-foreground text-left"
-              >
-                Features
-              </button>
-              <button
-                onClick={() => {
-                  scrollTo("pricing");
-                  setMobileOpen(false);
-                }}
-                className="text-sm font-medium text-muted-foreground hover:text-foreground text-left"
-              >
-                Pricing
-              </button>
-              <Link
-                href="/docs"
-                onClick={() => setMobileOpen(false)}
-                className="text-sm font-medium text-muted-foreground hover:text-foreground"
-              >
-                API Docs
-              </Link>
-              <Link
-                href="/blog"
-                onClick={() => setMobileOpen(false)}
-                className="text-sm font-medium text-muted-foreground hover:text-foreground"
-              >
-                Blog
-              </Link>
+            <div className="px-6 py-5 flex flex-col gap-4 text-sm text-slate-500">
+              <button onClick={() => { scrollTo("features"); setMobileOpen(false); }} className="text-left transition hover:text-slate-900">Features</button>
+              <button onClick={() => { scrollTo("pricing"); setMobileOpen(false); }} className="text-left transition hover:text-slate-900">Pricing</button>
+              <Link href="/docs" onClick={() => setMobileOpen(false)} className="transition hover:text-slate-900">API Docs</Link>
+              <Link href="/blog" onClick={() => setMobileOpen(false)} className="transition hover:text-slate-900">Blog</Link>
               {user ? (
                 <>
-                  <Link
-                    href="/dashboard"
-                    onClick={() => setMobileOpen(false)}
-                    className="text-sm font-medium text-muted-foreground hover:text-foreground"
-                  >
-                    Dashboard
-                  </Link>
+                  <Link href="/dashboard" onClick={() => setMobileOpen(false)} className="transition hover:text-slate-900">Dashboard</Link>
                   {user.role === "ADMIN" && (
-                    <Link
-                      href="/admin"
-                      onClick={() => setMobileOpen(false)}
-                      className="text-sm font-medium text-muted-foreground hover:text-foreground"
-                    >
-                      Admin
-                    </Link>
+                    <Link href="/admin" onClick={() => setMobileOpen(false)} className="transition hover:text-slate-900">Admin</Link>
                   )}
-                  <button
-                    onClick={logout}
-                    className="text-sm font-medium text-destructive text-left"
-                  >
-                    Logout
-                  </button>
+                  <button onClick={logout} className="text-left text-red-500 hover:text-red-700 transition">Log out</button>
                 </>
               ) : (
                 <>
-                  <Link
-                    href="/login"
-                    onClick={() => setMobileOpen(false)}
-                    className="text-sm font-medium text-muted-foreground hover:text-foreground"
-                  >
-                    Log in
-                  </Link>
-                  <Link
-                    href="/signup"
-                    onClick={() => setMobileOpen(false)}
-                    className="text-sm font-semibold text-primary"
-                  >
-                    Get Started Free
-                  </Link>
+                  <Link href="/login" onClick={() => setMobileOpen(false)} className="transition hover:text-slate-900">Log in</Link>
+                  <Link href="/signup" onClick={() => setMobileOpen(false)} className="font-medium text-slate-900">Start free →</Link>
                 </>
               )}
             </div>
@@ -282,7 +203,7 @@ export function Footer() {
       <div className="mx-auto max-w-6xl">
         <div className="flex flex-col items-center gap-6 sm:flex-row sm:justify-between">
           <div className="flex items-center transition-opacity hover:opacity-80">
-            <Logo size={34} invert={true} />
+            <Logo size={34} />
           </div>
           <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-muted-foreground">
             <Link

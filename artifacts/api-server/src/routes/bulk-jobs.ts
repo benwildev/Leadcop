@@ -66,7 +66,6 @@ async function processJob(jobId: number): Promise<void> {
               isFreeEmail: r.isFreeEmail,
               isRoleAccount: r.roleAccount ?? false,
               mxValid: r.mxValidResult ?? null,
-              inboxSupport: r.inboxSupportResult ?? null,
             } satisfies BulkJobResultItem;
           } catch {
             return {
@@ -80,7 +79,6 @@ async function processJob(jobId: number): Promise<void> {
               isFreeEmail: false,
               isRoleAccount: false,
               mxValid: null,
-              inboxSupport: null,
               error: "Check failed",
             } satisfies BulkJobResultItem;
           }
@@ -198,12 +196,13 @@ router.post("/bulk-jobs", async (req, res) => {
   }
 
   const planConfig = await getPlanConfig(user.plan);
-  const maxBulkEmails = planConfig.maxBulkEmails ?? 0;
+  const bulkLimit = (planConfig as any).bulkEmailLimit ?? 0;
 
-  if (maxBulkEmails === 0) {
+  // bulkEmailLimit: 0 = disabled, -1 = unlimited, N = max emails per job
+  if (bulkLimit === 0 || !planConfig.hasBulkValidation) {
     res.status(403).json({
-      error: "Bulk verification requires a BASIC or PRO plan.",
-      planRequired: "BASIC",
+      error: "Bulk validation is not available on your plan.",
+      planRequired: "PRO",
     });
     return;
   }
@@ -216,10 +215,10 @@ router.post("/bulk-jobs", async (req, res) => {
 
   const { emails } = parsed.data;
 
-  if (emails.length > maxBulkEmails) {
+  if (bulkLimit > 0 && emails.length > bulkLimit) {
     res.status(400).json({
-      error: `Your plan allows up to ${maxBulkEmails} emails per bulk job. You submitted ${emails.length}.`,
-      maxBulkEmails,
+      error: `Your plan allows up to ${bulkLimit.toLocaleString()} emails per bulk job. You submitted ${emails.length.toLocaleString()}.`,
+      bulkEmailLimit: bulkLimit,
     });
     return;
   }
@@ -362,7 +361,7 @@ router.get("/bulk-jobs/:id/download", async (req, res) => {
     return s;
   };
 
-  const header = "email,domain,is_disposable,reputation_score,risk_level,is_free_email,is_role_account,mx_valid,inbox_support,tags\n";
+  const header = "email,domain,is_disposable,reputation_score,risk_level,is_free_email,is_role_account,mx_valid,tags\n";
   const rows = results.map((r: any) => [
     csvCell(r.email),
     csvCell(r.domain),
@@ -372,7 +371,6 @@ router.get("/bulk-jobs/:id/download", async (req, res) => {
     r.isFreeEmail ? "true" : "false",
     r.isRoleAccount ? "true" : "false",
     r.mxValid === null ? "" : r.mxValid ? "true" : "false",
-    r.inboxSupport === null ? "" : r.inboxSupport ? "true" : "false",
     csvCell((r.tags ?? []).join(";")),
   ].join(",")).join("\n");
 

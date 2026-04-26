@@ -38,10 +38,11 @@ export default function EmailCheckForm({ email, onEmailChange, apiUrl = "/api/ch
         credentials: "omit",
       });
       const data = await res.json();
+      const [local] = emailValue.split("@");
       setResult({ 
         isDisposable: !!data.isDisposable, 
         domain,
-        didYouMean: data.didYouMean || null,
+        didYouMean: data.didYouMean ? `${local}@${data.didYouMean}` : null,
         isGibberish: !!data.isGibberish
       });
     } catch {
@@ -72,8 +73,7 @@ export default function EmailCheckForm({ email, onEmailChange, apiUrl = "/api/ch
 
   const applySuggestion = () => {
     if (!result?.didYouMean) return;
-    const [local] = email.split("@");
-    onEmailChange(`${local}@${result.didYouMean}`);
+    onEmailChange(result.didYouMean);
   };
 
   return (

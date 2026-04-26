@@ -1,12 +1,11 @@
 import React, { useState } from "react";
 import {
-  Key, Copy, RefreshCw, BarChart3, Activity, CheckCircle2, Zap, Code,
-  Clock, AlertTriangle, ChevronDown, Webhook, ShieldBan,
+  Key, Copy, RefreshCw, BarChart3, Activity, CheckCircle2, Zap,
+  Clock, AlertTriangle, Webhook, ShieldBan, Shield, TrendingUp,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { format, parseISO } from "date-fns";
-import { Link } from "wouter";
 import { type DashboardDataWithPlanConfig } from "@workspace/api-client-react";
 import ReputationBadge from "@/components/ReputationBadge";
 import { maskEmail } from "../utils";
@@ -24,6 +23,7 @@ function GettingStartedChecklist({ apiKey, userId }: { apiKey: string; userId: n
     script: initial.script ?? false,
   });
   const [keyCopied, setKeyCopied] = useState(false);
+  const [scriptCopied, setScriptCopied] = useState(false);
 
   const mark = (id: string) => {
     setSteps((prev) => {
@@ -43,6 +43,15 @@ function GettingStartedChecklist({ apiKey, userId }: { apiKey: string; userId: n
     setTimeout(() => setKeyCopied(false), 2000);
   };
 
+  const handleCopyScript = () => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "https://leadcop.io";
+    const scriptTag = `<script src="${origin}/temp-email-validator.js" data-api-key="${apiKey}"></script>`;
+    navigator.clipboard.writeText(scriptTag);
+    setScriptCopied(true);
+    mark("script");
+    setTimeout(() => setScriptCopied(false), 2000);
+  };
+
   const checkItems = [
     {
       id: "key",
@@ -51,7 +60,7 @@ function GettingStartedChecklist({ apiKey, userId }: { apiKey: string; userId: n
       action: (
         <button
           onClick={handleCopyKey}
-          className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg text-xs font-semibold transition-colors"
+          className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg text-xs font-semibold transition-colors cursor-pointer"
         >
           {keyCopied ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
           {keyCopied ? "Copied!" : "Copy key"}
@@ -63,13 +72,13 @@ function GettingStartedChecklist({ apiKey, userId }: { apiKey: string; userId: n
       label: "Add the script to your site",
       sublabel: "Drop one line of HTML to start blocking disposable emails.",
       action: (
-        <Link
-          href="/docs"
-          onClick={() => mark("script")}
-          className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg text-xs font-semibold transition-colors"
+        <button
+          onClick={handleCopyScript}
+          className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg text-xs font-semibold transition-colors cursor-pointer"
         >
-          <Code className="w-3.5 h-3.5" /> View docs
-        </Link>
+          {scriptCopied ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+          {scriptCopied ? "Copied!" : "Copy script"}
+        </button>
       ),
     },
   ];
@@ -80,7 +89,7 @@ function GettingStartedChecklist({ apiKey, userId }: { apiKey: string; userId: n
     <motion.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      className="glass-card rounded-2xl p-6 lg:col-span-3"
+      className="glass-card rounded-2xl p-6 col-span-full"
     >
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
@@ -106,7 +115,7 @@ function GettingStartedChecklist({ apiKey, userId }: { apiKey: string; userId: n
           <div
             key={item.id}
             className={`flex items-center gap-4 p-3 rounded-xl border transition-colors ${
-              steps[item.id] ? "border-green-200 bg-green-50/50" : "border-border bg-muted/20"
+              steps[item.id] ? "border-green-200 bg-green-50/50 dark:border-green-500/20 dark:bg-green-500/5" : "border-border bg-muted/20"
             }`}
           >
             <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-xs font-bold transition-colors ${
@@ -128,6 +137,38 @@ function GettingStartedChecklist({ apiKey, userId }: { apiKey: string; userId: n
   );
 }
 
+/* ── Circular usage gauge ── */
+function UsageGauge({ pct, count, limit }: { pct: number; count: number; limit: number }) {
+  const radius = 54;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (pct / 100) * circumference;
+  const gaugeColor = pct > 90 ? "stroke-red-500" : pct > 70 ? "stroke-amber-500" : "stroke-primary";
+
+  return (
+    <div className="flex flex-col items-center">
+      <div className="relative w-32 h-32">
+        <svg className="w-32 h-32 -rotate-90" viewBox="0 0 120 120">
+          <circle cx="60" cy="60" r={radius} fill="none" stroke="hsl(var(--border))" strokeWidth="8" />
+          <circle
+            cx="60" cy="60" r={radius} fill="none"
+            className={`${gaugeColor} transition-all duration-1000 ease-out`}
+            strokeWidth="8" strokeLinecap="round"
+            strokeDasharray={circumference}
+            strokeDashoffset={offset}
+          />
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="font-heading text-2xl font-bold text-foreground">{Math.round(pct)}%</span>
+          <span className="text-[10px] text-muted-foreground font-medium">used</span>
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground mt-2 text-center">
+        {count.toLocaleString()} / {limit.toLocaleString()}
+      </p>
+    </div>
+  );
+}
+
 export default function OverviewTab({
   data, usagePct, copied, onCopy, onRegenerate, regenPending,
 }: {
@@ -138,8 +179,6 @@ export default function OverviewTab({
   onRegenerate: () => void;
   regenPending: boolean;
 }) {
-  const [showEmbedScript, setShowEmbedScript] = useState(false);
-
   const chartData = (() => {
     const byDayMap = new Map((data.usageByDay as { date: string; count: number }[]).map((d) => [d.date, d.count]));
     return Array.from({ length: 30 }, (_, i) => {
@@ -150,98 +189,151 @@ export default function OverviewTab({
     });
   })();
 
+  // Today's calls
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const todayCalls = chartData.find(d => d.date === todayKey)?.count ?? 0;
 
+  // 7-day total
+  const last7 = chartData.slice(-7).reduce((sum, d) => sum + d.count, 0);
+
+  const metricCards = [
+    {
+      label: "Credits Used",
+      value: data.user.requestCount.toLocaleString(),
+      sub: `of ${data.user.requestLimit.toLocaleString()}`,
+      icon: Zap,
+      color: "text-primary",
+      bg: "bg-primary/10",
+      gradient: "from-primary/5 to-transparent",
+    },
+    {
+      label: "Today",
+      value: todayCalls.toLocaleString(),
+      sub: "API calls today",
+      icon: TrendingUp,
+      color: "text-emerald-500",
+      bg: "bg-emerald-500/10",
+      gradient: "from-emerald-500/5 to-transparent",
+    },
+    {
+      label: "Last 7 Days",
+      value: last7.toLocaleString(),
+      sub: "total calls",
+      icon: Activity,
+      color: "text-blue-500",
+      bg: "bg-blue-500/10",
+      gradient: "from-blue-500/5 to-transparent",
+    },
+    {
+      label: "Blocked",
+      value: data.counts?.blocklist?.toLocaleString() ?? "0",
+      sub: "domains blocklisted",
+      icon: Shield,
+      color: "text-rose-500",
+      bg: "bg-rose-500/10",
+      gradient: "from-rose-500/5 to-transparent",
+    },
+  ];
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div className="space-y-6">
       <GettingStartedChecklist apiKey={data.user.apiKey} userId={data.user.id} />
 
-      {/* API Key Card */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-2xl p-6 lg:col-span-2">
-        <div className="flex items-center gap-2 mb-4">
-          <Key className="h-4 w-4 text-primary" />
-          <h2 className="font-heading text-base font-semibold text-foreground">Primary API Key</h2>
-        </div>
-        <div className="flex gap-2">
-          <div className="flex-1 rounded-lg border border-border bg-muted/50 px-4 py-3 font-mono text-sm text-foreground/80 flex items-center overflow-x-auto">
-            {data.user.apiKey}
-          </div>
-          <button onClick={() => onCopy(data.user.apiKey)}
-            className="p-3 rounded-lg border border-border bg-muted/30 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            title="Copy">
-            {copied ? <CheckCircle2 className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-          </button>
-          <button onClick={onRegenerate} disabled={regenPending}
-            className="p-3 rounded-lg border border-border bg-muted/30 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            title="Regenerate">
-            <RefreshCw className={`h-4 w-4 ${regenPending ? "animate-spin" : ""}`} />
-          </button>
-        </div>
-        <p className="text-xs text-muted-foreground mt-3">
-          Include as{" "}
-          <code className="rounded bg-muted px-1.5 py-0.5 text-primary text-xs">Authorization: Bearer &lt;key&gt;</code>
-          {" "}in your requests.
-        </p>
-      </motion.div>
-
-      {/* Usage Card */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card rounded-2xl p-6">
-        <div className="flex justify-between items-center mb-4">
-          <div className="flex items-center gap-2">
-            <BarChart3 className="h-4 w-4 text-primary" />
-            <h2 className="font-heading text-base font-semibold text-foreground">Usage</h2>
-          </div>
-          <span className="rounded-md bg-primary/15 px-2.5 py-1 text-xs font-bold text-primary uppercase tracking-wide">
-            {data.user.plan}
-          </span>
-        </div>
-        <div className="font-heading text-3xl font-bold text-foreground mb-1">
-          {data.user.requestCount.toLocaleString()}
-          <span className="text-base font-normal text-muted-foreground"> / {data.user.requestLimit.toLocaleString()}</span>
-        </div>
-        <div className="mt-4 h-2 w-full rounded-full bg-border overflow-hidden">
-          <div
-            className="h-2 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-700"
-            style={{ width: `${usagePct}%` }}
-          />
-        </div>
-        <p className="text-xs text-muted-foreground mt-3">
-          {(data.user.requestLimit - data.user.requestCount).toLocaleString()} requests remaining
-        </p>
-      </motion.div>
-
-      {/* Stat Bento Grid */}
-      {data.counts && (
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }} 
-          animate={{ opacity: 1, y: 0 }} 
-          transition={{ delay: 0.15 }} 
-          className="lg:col-span-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
-        >
-          {[
-            { label: "Named API Keys", value: data.counts.namedApiKeys, icon: Key, color: "text-indigo-500", bg: "bg-indigo-500/10" },
-            { label: "Webhooks Enabled", value: data.counts.webhooks, icon: Webhook, color: "text-purple-500", bg: "bg-purple-500/10" },
-            { label: "Blocklisted Domains", value: data.counts.blocklist, icon: ShieldBan, color: "text-rose-500", bg: "bg-rose-500/10" },
-            { label: "Total Protected", value: data.user.requestCount, icon: CheckCircle2, color: "text-emerald-500", bg: "bg-emerald-500/10" },
-          ].map(({ label, value, icon: Icon, color, bg }) => (
-            <div key={label} className="glass-card rounded-2xl p-4 flex flex-col items-center text-center transition-transform hover:scale-[1.02]">
-              <div className={`mb-3 p-2 rounded-xl ${bg}`}>
+      {/* ── Metric Bento Cards ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {metricCards.map(({ label, value, sub, icon: Icon, color, bg, gradient }, i) => (
+          <motion.div
+            key={label}
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.05 }}
+            className="glass-card rounded-2xl p-5 relative overflow-hidden group hover:shadow-md transition-shadow"
+          >
+            <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
+            <div className="relative">
+              <div className={`mb-3 h-9 w-9 rounded-xl ${bg} flex items-center justify-center`}>
                 <Icon className={`h-4 w-4 ${color}`} />
               </div>
-              <span className="font-heading text-2xl font-bold text-foreground">{value.toLocaleString()}</span>
-              <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mt-1">{label}</span>
+              <p className="font-heading text-2xl font-bold text-foreground">{value}</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">{sub}</p>
             </div>
-          ))}
+          </motion.div>
+        ))}
+      </div>
+
+      {/* ── API Key + Radial Usage ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* API Key */}
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="glass-card rounded-2xl p-6 lg:col-span-2">
+          <div className="flex items-center gap-2 mb-4">
+            <Key className="h-4 w-4 text-primary" />
+            <h2 className="font-heading text-base font-semibold text-foreground">Primary API Key</h2>
+            <span className="ml-auto rounded-md bg-primary/15 px-2.5 py-1 text-xs font-bold text-primary uppercase tracking-wide">
+              {data.user.plan}
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <div className="flex-1 rounded-xl border border-border bg-muted/40 px-4 py-3 font-mono text-sm text-foreground/80 flex items-center overflow-x-auto">
+              {data.user.apiKey}
+            </div>
+            <button onClick={() => onCopy(data.user.apiKey)}
+              className="p-3 rounded-xl border border-border bg-muted/30 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+              title="Copy">
+              {copied ? <CheckCircle2 className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+            </button>
+            <button onClick={onRegenerate} disabled={regenPending}
+              className="p-3 rounded-xl border border-border bg-muted/30 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer disabled:opacity-50"
+              title="Regenerate">
+              <RefreshCw className={`h-4 w-4 ${regenPending ? "animate-spin" : ""}`} />
+            </button>
+          </div>
+          <p className="text-xs text-muted-foreground mt-3">
+            Include as{" "}
+            <code className="rounded bg-muted px-1.5 py-0.5 text-primary text-xs">Authorization: Bearer &lt;key&gt;</code>
+            {" "}in your requests.
+          </p>
+        </motion.div>
+
+        {/* Radial Usage Gauge */}
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="glass-card rounded-2xl p-6 flex flex-col items-center justify-center">
+          <h2 className="font-heading text-sm font-semibold text-muted-foreground mb-4">Monthly Usage</h2>
+          <UsageGauge pct={usagePct} count={data.user.requestCount} limit={data.user.requestLimit} />
+          <p className="text-xs text-muted-foreground mt-3">
+            {(data.user.requestLimit - data.user.requestCount).toLocaleString()} remaining
+          </p>
+        </motion.div>
+      </div>
+
+      {/* ── Quick Stats Bar ── */}
+      {data.counts && (
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
+          <div className="grid grid-cols-3 gap-4">
+            {[
+              { label: "API Keys", value: data.counts.namedApiKeys, icon: Key, color: "text-indigo-500", bg: "bg-indigo-500/10" },
+              { label: "Webhooks", value: data.counts.webhooks, icon: Webhook, color: "text-purple-500", bg: "bg-purple-500/10" },
+              { label: "Blocklist", value: data.counts.blocklist, icon: ShieldBan, color: "text-rose-500", bg: "bg-rose-500/10" },
+            ].map(({ label, value, icon: Icon, color, bg }) => (
+              <div key={label} className="glass-card rounded-2xl p-4 flex items-center gap-3 transition-all hover:shadow-sm">
+                <div className={`h-10 w-10 rounded-xl ${bg} flex items-center justify-center shrink-0`}>
+                  <Icon className={`h-4 w-4 ${color}`} />
+                </div>
+                <div>
+                  <span className="font-heading text-xl font-bold text-foreground">{value.toLocaleString()}</span>
+                  <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">{label}</p>
+                </div>
+              </div>
+            ))}
+          </div>
         </motion.div>
       )}
 
-      {/* Chart */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="glass-card rounded-2xl p-6 lg:col-span-3">
+      {/* ── API Calls Chart ── */}
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="glass-card rounded-2xl p-6">
         <div className="flex items-center gap-2 mb-6">
           <Activity className="h-4 w-4 text-primary" />
           <h2 className="font-heading text-base font-semibold text-foreground">API Calls — Last 30 Days</h2>
         </div>
-        <div className="h-[260px] w-full">
+        <div className="h-[280px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
               <defs>
@@ -259,40 +351,8 @@ export default function OverviewTab({
         </div>
       </motion.div>
 
-      {/* Embed Script Card */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="glass-card rounded-2xl p-6 lg:col-span-3">
-        <button
-          onClick={() => setShowEmbedScript(v => !v)}
-          className="w-full flex items-center justify-between gap-2 text-left"
-        >
-          <div className="flex items-center gap-2">
-            <Code className="h-4 w-4 text-primary" />
-            <h2 className="font-heading text-base font-semibold text-foreground">Embed Script</h2>
-          </div>
-          <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${showEmbedScript ? "rotate-180" : ""}`} />
-        </button>
-        {showEmbedScript && (
-          <div className="mt-4 space-y-3">
-            <p className="text-xs text-muted-foreground">
-              Drop this snippet into your HTML to enable client-side disposable email detection on your forms.
-            </p>
-            <div className="flex gap-2 items-start">
-              <pre className="flex-1 rounded-xl bg-muted/50 border border-border px-4 py-3 font-mono text-xs text-foreground/80 overflow-x-auto whitespace-pre-wrap break-all">
-                {`<script src="${typeof window !== "undefined" ? window.location.origin : ""}/temp-email-validator.js" data-api-key="${data.user.apiKey}"></script>`}
-              </pre>
-              <button
-                onClick={() => onCopy(`<script src="${typeof window !== "undefined" ? window.location.origin : ""}/temp-email-validator.js" data-api-key="${data.user.apiKey}"></script>`)}
-                className="flex-shrink-0 p-3 rounded-xl border border-border bg-muted/30 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              >
-                {copied ? <CheckCircle2 className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-              </button>
-            </div>
-          </div>
-        )}
-      </motion.div>
-
-      {/* Recent Requests */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="glass-card rounded-2xl p-6 lg:col-span-3 overflow-hidden">
+      {/* ── Recent Requests ── */}
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }} className="glass-card rounded-2xl p-6 overflow-hidden">
         <div className="flex items-center gap-2 mb-6">
           <Clock className="h-4 w-4 text-primary" />
           <h2 className="font-heading text-base font-semibold text-foreground">Recent Requests</h2>

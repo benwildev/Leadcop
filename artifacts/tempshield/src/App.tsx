@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { useApplyHeadMeta } from "@/hooks/use-site-settings";
+import { LoadingScreen } from "@/components/shared/LoadingScreen";
 import NotFound from "@/pages/not-found";
 import LandingPage from "./pages/landing"; // Eager loaded for LCP
 
@@ -31,7 +32,7 @@ function ProtectedRoute({ component: Component, adminOnly = false }: { component
   const { user, isLoading } = useAuth();
 
   if (isLoading) {
-    return <div className="min-h-screen bg-background flex items-center justify-center"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div></div>;
+    return <LoadingScreen isLoading={true} message="Authenticating..." />;
   }
 
   if (!user) {
@@ -52,7 +53,7 @@ function GlobalHeadManager() {
 
 function Router() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-background flex flex-col items-center justify-center"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div><p className="mt-4 text-sm text-muted-foreground animate-pulse">Loading app modules...</p></div>}>
+    <Suspense fallback={<LoadingScreen isLoading={true} message="Loading platform modules..." />}>
       <Switch>
         <Route path="/" component={LandingPage} />
         <Route path="/pricing" component={PricingPage} />

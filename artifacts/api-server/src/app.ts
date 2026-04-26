@@ -92,7 +92,7 @@ const corsMiddleware = cors((req: any, callback: (err: Error | null, options?: C
     callback(null, {
       origin: "*",
       methods: ["POST", "OPTIONS"],
-      allowedHeaders: ["Content-Type", "Authorization"],
+      allowedHeaders: ["Content-Type", "Authorization", "X-LeadCop-Source", "X-LeadCop-Gate"],
       credentials: false,
     } satisfies CorsOptions);
   } else {
@@ -100,7 +100,7 @@ const corsMiddleware = cors((req: any, callback: (err: Error | null, options?: C
       origin: (origin, done) => done(null, origin || true),
       credentials: true,
       methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-      allowedHeaders: ["Content-Type", "Authorization"],
+      allowedHeaders: ["Content-Type", "Authorization", "X-LeadCop-Source", "X-LeadCop-Gate"],
     } satisfies CorsOptions);
   }
 });

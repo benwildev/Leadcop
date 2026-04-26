@@ -7,10 +7,13 @@ import { useGetUserApiKeys, useCreateUserApiKey, useDeleteUserApiKey, type UserA
 import { errMsg } from "../utils";
 import { GlassCard, EmptyState, ActionButton, PageHeader } from "@/components/shared";
 
+import type { DashboardPlanConfig } from "@workspace/api-client-react";
+
 export default function ApiKeysTab({
-  plan, apiKey, copied, onCopy, onRegenerate, regenPending,
+  plan, planConfig, apiKey, copied, onCopy, onRegenerate, regenPending,
 }: {
   plan: string;
+  planConfig: DashboardPlanConfig;
   apiKey: string;
   copied: boolean;
   onCopy: (text: string) => void;
@@ -87,10 +90,16 @@ export default function ApiKeysTab({
               variant="outline"
               icon={RefreshCw}
               loading={regenPending}
+              disabled={planConfig.maxApiKeys <= 1}
               onClick={onRegenerate}
-              title="Regenerate"
+              title={planConfig.maxApiKeys <= 1 ? "Regeneration is not available on your plan" : "Regenerate"}
             />
           </div>
+          {planConfig.maxApiKeys <= 1 && (
+            <p className="text-[10px] text-yellow-500/80 mt-2 font-medium">
+              Regenerating the primary API key requires a paid plan. <Link href="/upgrade" className="underline underline-offset-2">Upgrade</Link>.
+            </p>
+          )}
           <p className="text-xs text-muted-foreground mt-3">
             Include as{" "}
             <code className="rounded bg-muted px-1.5 py-0.5 text-primary text-xs">Authorization: Bearer &lt;key&gt;</code>
@@ -124,16 +133,14 @@ export default function ApiKeysTab({
           </div>
           <p className="text-xs text-muted-foreground mb-5">
             Create multiple named keys for different integrations. Each key is tied to your account quota.
-            {plan === "FREE" ? (
-              <span className="text-yellow-400"> Named keys require BASIC or PRO. <Link href="/upgrade" className="underline underline-offset-2">Upgrade your plan.</Link></span>
-            ) : plan === "BASIC" ? (
-              <span className="text-yellow-400"> BASIC allows 1 named key. Upgrade to PRO for up to 10.</span>
+            {planConfig.maxApiKeys <= 1 ? (
+              <span className="text-yellow-400"> Named keys require an upgraded plan. <Link href="/upgrade" className="underline underline-offset-2">Upgrade your plan.</Link></span>
             ) : (
-              <span> PRO plans support up to 10 named keys.</span>
+              <span> Your plan supports up to {planConfig.maxApiKeys} named keys.</span>
             )}
           </p>
 
-          {plan !== "FREE" && (
+          {planConfig.maxApiKeys > 1 && (
             <div className="flex gap-2 mb-4">
               <input
                 type="text"

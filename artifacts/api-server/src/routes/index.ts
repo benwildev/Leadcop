@@ -15,6 +15,7 @@ import accountRouter from "./account.js";
 import supportRouter from "./support.js";
 import blogRouter from "./blog.js";
 import newsletterRouter from "./newsletter.js";
+import teamRouter from "./team.js";
 
 const router: IRouter = Router();
 
@@ -34,5 +35,6 @@ router.use(accountRouter);
 router.use("/support", supportRouter);
 router.use(blogRouter);
 router.use(newsletterRouter);
+router.use("/user", teamRouter);
 
 export default router;

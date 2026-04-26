@@ -45,7 +45,7 @@ export default function RegisterPage() {
         credentials: "omit",
       });
       const data = await res.json();
-      
+
       if (data.isInvalidTld) {
         setEmailError("Invalid domain");
         setEmailDisposable(true);
@@ -71,6 +71,7 @@ export default function RegisterPage() {
 
   useEffect(() => {
     setEmailDisposable(null);
+    setEmailError("");
     setCheckingEmail(false);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (email) {
@@ -84,6 +85,11 @@ export default function RegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    if (email && !isValidEmail(email)) {
+      setEmailError("Enter a valid email address.");
+      setError("Please enter a valid email address.");
+      return;
+    }
     if (emailDisposable) {
       setError("Disposable email addresses are not allowed. Please use a permanent email address.");
       return;
@@ -102,7 +108,8 @@ export default function RegisterPage() {
     }
   };
 
-  const emailIsInvalid = emailDisposable === true;
+  const emailFormatInvalid = email.length > 0 && !isValidEmail(email);
+  const emailIsInvalid = emailFormatInvalid || emailDisposable === true;
 
   return (
     <div className="min-h-screen w-full flex">
@@ -114,7 +121,7 @@ export default function RegisterPage() {
       >
         <div className="mb-10">
           <Link href="/" className="inline-block hover:opacity-80 transition-opacity">
-          <Logo size={48} invert={true} />
+            <Logo size={48} />
           </Link>
         </div>
 
@@ -138,11 +145,10 @@ export default function RegisterPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className={`w-full rounded-2xl px-5 py-3.5 pr-10 text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 transition-all ${
-                  emailIsInvalid
+                className={`w-full rounded-2xl px-5 py-3.5 pr-10 text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 transition-all ${emailIsInvalid
                     ? "bg-red-50 ring-2 ring-red-300 focus:ring-red-400/60"
                     : "bg-slate-100 focus:ring-purple-400/60"
-                }`}
+                  }`}
                 placeholder="you@company.com"
               />
               <div className="absolute right-4 top-1/2 -translate-y-1/2">
@@ -163,7 +169,9 @@ export default function RegisterPage() {
                   exit={{ opacity: 0, y: -4 }}
                   className="mt-1.5 text-xs text-red-500 font-medium px-1"
                 >
-                  {emailError || "Disposable email addresses are not allowed."}
+                  {emailFormatInvalid
+                    ? "Enter a valid email address."
+                    : emailError || "Disposable email addresses are not allowed."}
                 </motion.p>
               )}
             </AnimatePresence>
@@ -194,11 +202,10 @@ export default function RegisterPage() {
               required
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className={`w-full bg-slate-100 rounded-2xl px-5 py-3.5 pr-12 text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 transition-all ${
-                confirmPassword && confirmPassword !== password
+              className={`w-full bg-slate-100 rounded-2xl px-5 py-3.5 pr-12 text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 transition-all ${confirmPassword && confirmPassword !== password
                   ? "focus:ring-red-400/60 ring-2 ring-red-300"
                   : "focus:ring-purple-400/60"
-              }`}
+                }`}
               placeholder="Confirm password"
             />
             <button

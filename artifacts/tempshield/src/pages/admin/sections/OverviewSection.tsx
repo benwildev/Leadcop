@@ -27,8 +27,9 @@ import { motion } from "framer-motion";
 import { SectionHeader } from "@/components/shared";
 import { Loader2 } from "lucide-react";
 
-const CHART_PLAN_HEX = { Free: "#6b7280", Basic: "#60a5fa", Pro: "#7c3aed" };
-const CHART_PURPLE = "hsl(263 70% 50%)";
+const CHART_PLAN_HEX = { Free: "#6b7280", Basic: "#60a5fa", Pro: "#7a719d" };
+const CHART_BRAND = "#7a719d";
+const CHART_BRAND_LIGHT = "#9990b8";
 const CHART_GREEN = "#34d399";
 
 const customTooltipStyle: React.CSSProperties = {
@@ -74,8 +75,8 @@ function StatCard({
       <div className={`absolute inset-0 opacity-5 ${accent ?? "bg-primary"}`} />
       <div className="flex items-center justify-between relative">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-            <Icon className="w-4 h-4 text-primary" />
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: "#7a719d18" }}>
+            <Icon className="w-4 h-4" style={{ color: "#7a719d" }} />
           </div>
           <span className="text-xs font-medium text-muted-foreground">
             {label}
@@ -118,10 +119,11 @@ function ChartCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: delay ?? 0 }}
       className={`glass-card rounded-xl p-5 ${className ?? ""}`}
+      style={{ borderTop: "2px solid #7a719d30" }}
     >
       <div className="flex items-center gap-2 mb-4">
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
-          <Icon className="w-3.5 h-3.5 text-primary" />
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: "#7a719d18" }}>
+          <Icon className="w-3.5 h-3.5" style={{ color: "#7a719d" }} />
         </div>
         <h3 className="font-heading text-sm font-semibold text-foreground">
           {title}
@@ -271,12 +273,12 @@ export function OverviewSection() {
                   <linearGradient id="gradCalls" x1="0" y1="0" x2="0" y2="1">
                     <stop
                       offset="5%"
-                      stopColor={CHART_PURPLE}
+                      stopColor={CHART_BRAND}
                       stopOpacity={0.35}
                     />
                     <stop
                       offset="95%"
-                      stopColor={CHART_PURPLE}
+                      stopColor={CHART_BRAND}
                       stopOpacity={0}
                     />
                   </linearGradient>
@@ -302,7 +304,7 @@ export function OverviewSection() {
                 <Tooltip
                   contentStyle={customTooltipStyle}
                   cursor={{
-                    stroke: CHART_PURPLE,
+                    stroke: CHART_BRAND,
                     strokeWidth: 1,
                     strokeDasharray: "3 3",
                   }}
@@ -311,11 +313,11 @@ export function OverviewSection() {
                   type="monotone"
                   dataKey="calls"
                   name="API Calls"
-                  stroke={CHART_PURPLE}
+                  stroke={CHART_BRAND}
                   strokeWidth={2}
                   fill="url(#gradCalls)"
                   dot={false}
-                  activeDot={{ r: 4, fill: CHART_PURPLE }}
+                  activeDot={{ r: 4, fill: CHART_BRAND }}
                 />
               </AreaChart>
             </ResponsiveContainer>

@@ -12,7 +12,6 @@ export interface BulkJobResultItem {
   isFreeEmail: boolean;
   isRoleAccount: boolean;
   mxValid: boolean | null;
-  inboxSupport: boolean | null;
   error?: string;
 }
 

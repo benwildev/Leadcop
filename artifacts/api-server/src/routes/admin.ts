@@ -43,7 +43,8 @@ router.get("/users", requireAdmin, async (req, res) => {
 });
 
 const updatePlanSchema = z.object({
-  plan: z.string().min(1).max(32),
+  plan: z.string().min(1).max(32).optional(),
+  requestLimit: z.number().int().min(1).optional(),
   note: z.string().optional(),
 });
 
@@ -56,31 +57,46 @@ router.patch("/users/:userId/plan", requireAdmin, async (req: Request, res: Resp
 
   const result = updatePlanSchema.safeParse(req.body);
   if (!result.success) {
-    res.status(400).json({ error: "Invalid input" });
+    res.status(400).json({ error: "Invalid input", details: result.error.issues });
     return;
   }
 
-  const { plan } = result.data;
+  const { plan, requestLimit } = result.data;
+  const updateData: any = {};
 
-  const [planExists] = await db
-    .select({ plan: planConfigsTable.plan })
-    .from(planConfigsTable)
-    .where(eq(planConfigsTable.plan, plan))
-    .limit(1);
+  if (plan) {
+    const [planExists] = await db
+      .select({ plan: planConfigsTable.plan })
+      .from(planConfigsTable)
+      .where(eq(planConfigsTable.plan, plan))
+      .limit(1);
 
-  if (!planExists) {
-    res.status(400).json({ error: `Plan "${plan}" does not exist` });
-    return;
+    if (!planExists) {
+      res.status(400).json({ error: `Plan "${plan}" does not exist` });
+      return;
+    }
+
+    const config = await getPlanConfig(plan);
+    updateData.plan = plan;
+    updateData.requestLimit = config.requestLimit;
+    updateData.requestCount = 0;
   }
 
-  const config = await getPlanConfig(plan);
+  if (requestLimit !== undefined) {
+    updateData.requestLimit = requestLimit;
+  }
+
+  if (Object.keys(updateData).length === 0) {
+    res.status(400).json({ error: "Nothing to update" });
+    return;
+  }
 
   await db
     .update(usersTable)
-    .set({ plan, requestLimit: config.requestLimit, requestCount: 0 })
+    .set(updateData)
     .where(eq(usersTable.id, userId));
 
-  res.json({ message: `User plan updated to ${plan}` });
+  res.json({ message: "User updated", ...updateData });
 });
 
 router.delete("/users/:userId", requireAdmin, async (req: Request, res: Response) => {
@@ -585,14 +601,19 @@ router.get("/plan-config", requireAdmin, async (req, res) => {
 const createPlanConfigSchema = z.object({
   plan: z.string().min(1).max(32).regex(/^[A-Z0-9_]+$/, "Plan name must be uppercase letters, numbers, or underscores"),
   requestLimit: z.number().int().positive().default(100),
-  mxDetectLimit: z.number().int().min(0).default(0),
-  inboxCheckLimit: z.number().int().min(0).default(0),
-  websiteLimit: z.number().int().min(0).default(0),
-  pageLimit: z.number().int().min(0).default(0),
-  maxBulkEmails: z.number().int().min(0).default(0),
-  mxDetectionEnabled: z.boolean().default(false),
-  inboxCheckEnabled: z.boolean().default(false),
+  dataLimit: z.number().int().min(-1).default(0),
+  websiteLimit: z.number().int().min(-1).default(0),
   price: z.number().min(0).default(0),
+  maxApiKeys: z.number().int().min(1).default(1),
+  maxUsers: z.number().int().min(-1).default(1),
+  logRetentionDays: z.number().int().min(-1).default(7),
+  hasBulkValidation: z.boolean().default(false),
+  bulkEmailLimit: z.number().int().min(-1).default(0),
+  hasWebhooks: z.boolean().default(false),
+  hasCustomBlocklist: z.boolean().default(false),
+  hasAdvancedAnalytics: z.boolean().default(false),
+  description: z.string().optional().default(""),
+  features: z.array(z.string()).optional().default([]),
 });
 
 router.post("/plan-config", requireAdmin, async (req, res) => {
@@ -625,14 +646,19 @@ router.post("/plan-config", requireAdmin, async (req, res) => {
 
 const updatePlanConfigSchema = z.object({
   requestLimit: z.number().int().positive().optional(),
-  mxDetectLimit: z.number().int().min(0).optional(),
-  inboxCheckLimit: z.number().int().min(0).optional(),
-  websiteLimit: z.number().int().min(0).optional(),
-  pageLimit: z.number().int().min(0).optional(),
-  maxBulkEmails: z.number().int().min(0).optional(),
-  mxDetectionEnabled: z.boolean().optional(),
-  inboxCheckEnabled: z.boolean().optional(),
+  dataLimit: z.number().int().min(-1).optional(),
+  websiteLimit: z.number().int().min(-1).optional(),
   price: z.number().min(0).optional(),
+  maxApiKeys: z.number().int().min(1).optional(),
+  maxUsers: z.number().int().min(-1).optional(),
+  logRetentionDays: z.number().int().min(-1).optional(),
+  hasBulkValidation: z.boolean().optional(),
+  bulkEmailLimit: z.number().int().min(-1).optional(),
+  hasWebhooks: z.boolean().optional(),
+  hasCustomBlocklist: z.boolean().optional(),
+  hasAdvancedAnalytics: z.boolean().optional(),
+  description: z.string().optional(),
+  features: z.array(z.string()).optional(),
 });
 
 router.patch("/plan-config/:plan", requireAdmin, async (req: Request, res: Response) => {
@@ -674,7 +700,7 @@ router.patch("/plan-config/:plan", requireAdmin, async (req: Request, res: Respo
   res.json({ message: `Plan config for ${planName} updated`, config: updated });
 });
 
-const PROTECTED_PLANS = ["FREE", "BASIC", "PRO"];
+const PROTECTED_PLANS = ["FREE", "PRO", "ENTERPRISE"];
 
 router.delete("/plan-config/:plan", requireAdmin, async (req: Request, res: Response) => {
   const planName = String(req.params.plan || "").toUpperCase();

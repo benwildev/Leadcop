@@ -10,7 +10,7 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
-import { Loader2, Search, Key, Trash2, RotateCcw, Users, Eye } from "lucide-react";
+import { Loader2, Search, Key, Trash2, RotateCcw, Users, Eye, Target } from "lucide-react";
 import { SectionHeader, GlassCard, ActionButton, DataTable, EmptyState, type Column } from "@/components/shared";
 import { UserDetailsModal } from "../components/UserDetailsModal";
 import { PLAN_COLORS } from "../constants";
@@ -77,6 +77,23 @@ export function UsersSection() {
       qc.invalidateQueries({ queryKey: ["/api/admin/users"] });
     } finally {
       setLoading(`revoke-${id}`, false);
+    }
+  };
+
+  const handleSetLimit = async (id: number, current: number) => {
+    const val = window.prompt("Enter new custom credit/request limit:", String(current));
+    if (val === null) return;
+    const limit = parseInt(val);
+    if (isNaN(limit) || limit < 0) {
+      alert("Please enter a valid number");
+      return;
+    }
+    setLoading(`limit-${id}`, true);
+    try {
+      await updatePlanMutation.mutateAsync({ userId: id, data: { requestLimit: limit } });
+      qc.invalidateQueries({ queryKey: ["/api/admin/users"] });
+    } finally {
+      setLoading(`limit-${id}`, false);
     }
   };
 
@@ -150,6 +167,14 @@ export function UsersSection() {
             loading={loadingIds[`reset-${u.id}`]}
             onClick={() => handleReset(u.id)}
             title="Reset usage"
+          />
+          <ActionButton
+            icon={Target}
+            variant="outline"
+            loading={loadingIds[`limit-${u.id}`]}
+            onClick={() => handleSetLimit(u.id, u.requestLimit)}
+            title="Set custom credits"
+            className="hover:text-blue-400 hover:bg-blue-500/10"
           />
           <ActionButton
             icon={Key}

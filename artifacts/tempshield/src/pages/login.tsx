@@ -44,7 +44,7 @@ export default function LoginPage() {
             href="/"
             className="inline-block hover:opacity-80 transition-opacity"
           >
-          <Logo size={48} invert={true} />
+            <Logo size={48} />
           </Link>
         </div>
 

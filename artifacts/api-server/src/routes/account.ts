@@ -66,13 +66,16 @@ router.get("/account/status", async (req, res) => {
     requestLimit: user.requestLimit,
     resetDate: resetDate.toISOString(),
     features: {
-      mxDetection: planConfig.mxDetectionEnabled,
-      inboxCheck: planConfig.inboxCheckEnabled,
-      bulkVerification: planConfig.maxBulkEmails > 0,
-      maxBulkEmails: planConfig.maxBulkEmails,
-      dnsblCheck: user.plan !== "FREE",
-      smtpProbe: user.plan === "PRO",
-      catchAllDetection: user.plan === "PRO",
+      mxDetection: true,
+      inboxCheck: true,
+      bulkVerification: planConfig.hasBulkValidation,
+      bulkEmailLimit: planConfig.bulkEmailLimit,
+      dataLimit: planConfig.dataLimit,
+      dnsblCheck: planConfig.hasAdvancedAnalytics,
+      webhooks: planConfig.hasWebhooks,
+      customBlocklist: planConfig.hasCustomBlocklist,
+      maxUsers: planConfig.maxUsers,
+      maxApiKeys: planConfig.maxApiKeys,
     },
   });
 });
