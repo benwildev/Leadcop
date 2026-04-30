@@ -102,7 +102,7 @@ async function checkEmailApi(email: string): Promise<ValResult> {
     if (data.isDisposable || data.disposable) {
       return {
         status: "blocked",
-        message: "Temporary email addresses are blocked.",
+        message: "Temporary email addresses are blocked. Please try again.",
         reason: "Disposable provider detected",
       };
     }
